@@ -103,10 +103,17 @@ void SensorManager::loop() {
   }
 
   // SELALU KIRIM DATA SETIAP 1 DETIK
-  if (millis() - _telemetry_last_send >= 1000) {
+      // LOGIKA ZERO-DELAY
+    bool is_earthquake_spike = (pga > 0.05); 
+    
+    if ( (is_earthquake_spike && millis() - _telemetry_last_send >= 100) || (millis() - _telemetry_last_send >= 1000) ) {
     SensorEvent ev = {pga,   ratio, _current_hz, rms,  dyn_x,
                       dyn_y, dyn_z, millis(),    temp, pres};
-    xQueueSend(_eventQueue, &ev, 0);
+    if (is_earthquake_spike) {
+            xQueueSendToFront(_eventQueue, &ev, 0);
+        } else {
+            xQueueSend(_eventQueue, &ev, 0);
+        }
     _telemetry_last_send = millis();
   }
 }
