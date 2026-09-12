@@ -7,7 +7,9 @@
 class NetworkManager {
 public:
     void begin(ConfigManager* configMgr);
-    void loop(); 
+    void loop();
+    bool isConnected();
+    void publishStatus(String status, bool sensor_ok, float tilt_angle, String pose); 
     void publishEvent(float pga, float sta_lta, int freq_hz, float ax, float ay, float az, unsigned long uptime_ms, unsigned long epoch, float lat, float lon, float temp, float pres);
     
 private:

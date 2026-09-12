@@ -47,7 +47,7 @@ void networkTaskCode(void* parameter) {
         networkMgr.loop(); // Handle rutin MQTT
         
         // Animasi LED Cerdas (Sesuai Status Sensor & WiFi)
-        if (WiFi.status() == WL_CONNECTED) {
+        if (WiFi.status() == WL_CONNECTED && networkMgr.isConnected()) {
             otaUpdater.loop();
             breathAngle += 0.05;
             if (breathAngle > 2 * PI) breathAngle -= 2 * PI;
