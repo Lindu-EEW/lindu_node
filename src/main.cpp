@@ -19,6 +19,7 @@ Adafruit_NeoPixel pixels(1, RGB_PIN, NEO_GRB + NEO_KHZ800);
 QueueHandle_t eventQueue;
 unsigned long global_alarm_until = 0;
 float local_latest_pga = 0.0;
+unsigned long local_alarm_until = 0;
 TaskHandle_t networkTaskHandle;
 
 // Helper: Ambil Waktu Epoch NTP
@@ -54,11 +55,15 @@ void networkTaskCode(void* parameter) {
             
             bool hw611_ok = sensorMgr.bme_ok || sensorMgr.bmp_ok;
             bool is_global_alarm = (millis() < global_alarm_until && global_alarm_until > 0);
-            bool is_local_alarm = (local_latest_pga > 0.05); // 0.05g threshold (light shaking)
+            bool is_local_alarm = (millis() < local_alarm_until && local_alarm_until > 0);
             
-            if (is_global_alarm || is_local_alarm) {
-                // WARNING GEMPA! Berkedip Merah Terang & Cepat!
+            if (is_global_alarm) {
+                // KONFIRMASI GEMPA (DARI SERVER): Berkedip Merah Cepat (Strobo)
                 if ((millis() / 100) % 2 == 0) pixels.setPixelColor(0, pixels.Color(255, 0, 0));
+                else pixels.setPixelColor(0, pixels.Color(0, 0, 0));
+            } else if (is_local_alarm) {
+                // DETEKSI GETARAN LOKAL (Menunggu Konfirmasi Node Lain): Berkedip Pink Pelan
+                if ((millis() / 500) % 2 == 0) pixels.setPixelColor(0, pixels.Color(255, 20, 147)); // Hot Pink
                 else pixels.setPixelColor(0, pixels.Color(0, 0, 0));
             } else if (!sensorMgr.sensor_ok && !hw611_ok) {
                 // Semua sensor mati: Berkedip Merah Cepat (Bahaya Fatal)
@@ -84,6 +89,7 @@ void networkTaskCode(void* parameter) {
         // Cek apakah ada data sensor di antrean (Non-Blocking)
         if (xQueueReceive(eventQueue, &ev, 0) == pdTRUE) {
             local_latest_pga = ev.pga;
+            if (ev.pga > 0.05) local_alarm_until = millis() + 5000; // Tahan warna pink selama 5 detik
             networkMgr.publishEvent(
                 ev.pga, ev.ratio, ev.freq_hz,
                 ev.accel_x, ev.accel_y, ev.accel_z,
