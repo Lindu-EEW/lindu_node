@@ -17,6 +17,8 @@ SensorManager sensorMgr;
 Adafruit_NeoPixel pixels(1, RGB_PIN, NEO_GRB + NEO_KHZ800);
 
 QueueHandle_t eventQueue;
+unsigned long global_alarm_until = 0;
+float local_latest_pga = 0.0;
 TaskHandle_t networkTaskHandle;
 
 // Helper: Ambil Waktu Epoch NTP
@@ -51,8 +53,14 @@ void networkTaskCode(void* parameter) {
             int brightness = (sin(breathAngle) + 1.0) * 20.0; 
             
             bool hw611_ok = sensorMgr.bme_ok || sensorMgr.bmp_ok;
+            bool is_global_alarm = (millis() < global_alarm_until && global_alarm_until > 0);
+            bool is_local_alarm = (local_latest_pga > 0.05); // 0.05g threshold (light shaking)
             
-            if (!sensorMgr.sensor_ok && !hw611_ok) {
+            if (is_global_alarm || is_local_alarm) {
+                // WARNING GEMPA! Berkedip Merah Terang & Cepat!
+                if ((millis() / 100) % 2 == 0) pixels.setPixelColor(0, pixels.Color(255, 0, 0));
+                else pixels.setPixelColor(0, pixels.Color(0, 0, 0));
+            } else if (!sensorMgr.sensor_ok && !hw611_ok) {
                 // Semua sensor mati: Berkedip Merah Cepat (Bahaya Fatal)
                 if ((millis() / 200) % 2 == 0) pixels.setPixelColor(0, pixels.Color(50, 0, 0));
                 else pixels.setPixelColor(0, pixels.Color(0, 0, 0));
@@ -75,6 +83,7 @@ void networkTaskCode(void* parameter) {
         
         // Cek apakah ada data sensor di antrean (Non-Blocking)
         if (xQueueReceive(eventQueue, &ev, 0) == pdTRUE) {
+            local_latest_pga = ev.pga;
             networkMgr.publishEvent(
                 ev.pga, ev.ratio, ev.freq_hz,
                 ev.accel_x, ev.accel_y, ev.accel_z,

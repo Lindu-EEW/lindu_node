@@ -1,4 +1,6 @@
 #include "NetworkManager.h"
+
+extern unsigned long global_alarm_until;
 #include "SensorManager.h"
 extern SensorManager sensorMgr;
 #include <WiFiClient.h>
@@ -101,6 +103,7 @@ void NetworkManager::mqttCallback(char* topic, byte* payload, unsigned int lengt
             
             if (dist < 50.0) {
                 Serial.println("[!] SIRINE MENYALA! Epicenter berjarak < 50km.");
+                global_alarm_until = millis() + 30000; // Nyalakan alarm selama 30 detik
             }
         }
     }
