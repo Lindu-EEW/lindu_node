@@ -1,0 +1,140 @@
+#include <Arduino.h>
+#include <esp_task_wdt.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/queue.h>
+#include <time.h>
+#include "ConfigManager.h"
+#include "NetworkManager.h"
+#include "SensorManager.h"
+
+// WDT Timeout: 5 detik (Jika alat nge-hang lebih dari 5 detik, paksa restart!)
+#define WDT_TIMEOUT 5 
+
+ConfigManager configMgr;
+NetworkManager networkMgr;
+SensorManager sensorMgr;
+
+// FreeRTOS Handlers
+QueueHandle_t eventQueue;
+TaskHandle_t networkTaskHandle;
+
+// ==========================================
+// NTP: Sinkronisasi Jam Dunia Nyata
+// Tanpa ini, ESP32 tidak tahu sekarang jam berapa (hanya tahu uptime).
+// Sangat kritis agar timestamp telemetri bisa dicocokkan antar-node.
+// ==========================================
+void syncNTP() {
+    Serial.print("[NTP] Menyinkronkan jam dengan server waktu dunia...");
+    configTime(7 * 3600, 0, "pool.ntp.org", "time.nist.gov"); // GMT+7 (WIB)
+    
+    // Tunggu maksimal 10 detik hingga jam tersinkronisasi
+    time_t now = 0;
+    int retry = 0;
+    while (now < 1000000 && retry < 20) {
+        delay(500);
+        time(&now);
+        retry++;
+    }
+    
+    if (now > 1000000) {
+        struct tm timeinfo;
+        localtime_r(&now, &timeinfo);
+        Serial.printf(" OK! Waktu: %04d-%02d-%02d %02d:%02d:%02d WIB\n",
+            timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday,
+            timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec);
+    } else {
+        Serial.println(" GAGAL (akan menggunakan uptime sebagai fallback).");
+    }
+}
+
+// Fungsi Helper: Dapatkan Unix Epoch saat ini (detik sejak 1 Jan 1970)
+unsigned long getEpochTime() {
+    time_t now;
+    time(&now);
+    return (unsigned long)now;
+}
+
+// ==========================================
+// TASK 1: NETWORK, MQTT & CLOUD OTA (Dikunci di Core 0)
+// Bertanggung jawab atas WiFi, MQTT, OTA, dan pengiriman telemetri.
+// Stack 12KB karena payload JSON telemetri lebih besar dari sebelumnya.
+// ==========================================
+void networkTaskCode(void* parameter) {
+    networkMgr.begin(&configMgr);
+    
+    SensorEvent ev;
+    
+    while(1) {
+        networkMgr.loop(); // Handle rutin MQTT (Termasuk perintah Cloud OTA)
+        
+        // Cek Kotak Surat (Queue). Jika ada data telemetri dari Core 1, kirimkan!
+        if (xQueueReceive(eventQueue, &ev, 0) == pdTRUE) {
+            networkMgr.publishEvent(
+                ev.pga, ev.ratio, ev.freq_hz,
+                ev.accel_x, ev.accel_y, ev.accel_z,
+                ev.uptime_ms, getEpochTime(),
+                configMgr.config.lat, configMgr.config.lon
+            );
+        }
+        
+        delay(10); // Wajib memberi nafas untuk RTOS Watchdog Core 0
+    }
+}
+
+#ifndef PIO_UNIT_TESTING
+
+void setup() {
+    Serial.begin(115200);
+    delay(2000);
+    
+    Serial.println("\n\n========================================");
+    Serial.println("  Lindu.id - Life-Critical Node v1.0 ");
+    Serial.println("========================================");
+    
+    configMgr.begin();
+    
+    Serial.println("[i] Memulai koneksi WiFi / Captive Portal...");
+    if (!configMgr.startCaptivePortal()) {
+        Serial.println("[!] Gagal menyambung WiFi. Menunggu restart WDT...");
+        while(1); 
+    }
+    
+    // SETUP WDT SETELAH WIFI TERHUBUNG (agar tidak reboot saat di captive portal)
+    esp_task_wdt_init(WDT_TIMEOUT, true); 
+    esp_task_wdt_add(NULL);               
+    
+    // Sinkronisasi jam setelah WiFi berhasil terhubung
+    syncNTP();
+    
+    Serial.println("[+] WiFi Terhubung! Memisahkan Core...");
+    
+    // Buat Kotak Surat berkapasitas 30 kejadian
+    // (Diperbesar dari 10 karena Mode Telemetri mengirim 1 pesan/detik)
+    eventQueue = xQueueCreate(30, sizeof(SensorEvent));
+    
+    // Lemparkan tugas Jaringan & WiFi murni ke Core 0 (Protocol Core)
+    xTaskCreatePinnedToCore(
+        networkTaskCode,   // Fungsi yang dieksekusi
+        "NetworkTask",     // Nama task
+        12288,             // Stack 12KB (diperbesar untuk JSON payload telemetri)
+        NULL,              // Parameter fungsi
+        1,                 // Prioritas task (1)
+        &networkTaskHandle,// Handle
+        0                  // Kunci ke Core 0
+    );
+    
+    // Sensor I2C tetap tinggal di Core 1 (Application Core)
+    sensorMgr.begin(eventQueue);
+}
+
+// ==========================================
+// TASK 2: SENSOR I2C (Dikunci di Core 1)
+// Membaca akselerometer 100x/detik tanpa gangguan WiFi.
+// ==========================================
+void loop() {
+    sensorMgr.loop();  
+    esp_task_wdt_reset();
+}
+
+#endif // PIO_UNIT_TESTING
+
