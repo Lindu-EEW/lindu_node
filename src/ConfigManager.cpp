@@ -33,6 +33,7 @@ void ConfigManager::resetConfig() {
 }
 
 bool ConfigManager::startCaptivePortal() {
+    WiFi.mode(WIFI_STA);
     WiFiManager wm;
     
     // Custom HTML params
