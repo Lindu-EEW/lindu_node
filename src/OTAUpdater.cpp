@@ -1,4 +1,6 @@
 #include "OTAUpdater.h"
+#include "NetworkManager.h"
+extern NetworkManager networkMgr;
 #include <Adafruit_NeoPixel.h>
 extern Adafruit_NeoPixel pixels;
 
@@ -63,7 +65,7 @@ void OTAUpdater::loop() {
 void OTAUpdater::checkForUpdate() {
     if (WiFi.status() != WL_CONNECTED) return;
     
-    ota_status = "CHECKING_GITHUB";
+    ota_status = "CHECKING_GITHUB"; networkMgr.forcePublishStatus();
     Serial.println("[OTA] Mengecek versi terbaru di GitHub...");
     
     WiFiClientSecure client;
@@ -111,7 +113,7 @@ void OTAUpdater::checkForUpdate() {
                         // Jika firmware baru gagal boot (crash), dia akan rollback dan blacklist ini tetap ada.
                         // Jika sukses boot, firmware baru akan menghapus blacklist ini di begin().
                         _prefs.putString("failed_tag", latest_tag);
-                        ota_status = "UPDATE_SUCCESS_RESTARTING";
+                        ota_status = "UPDATE_SUCCESS_RESTARTING"; networkMgr.forcePublishStatus();
                         Serial.println("[OTA] Update selesai! Restarting...");
                         delay(1000);
                         ESP.restart();
@@ -121,7 +123,7 @@ void OTAUpdater::checkForUpdate() {
                     }
                 }
             } else {
-                ota_status = "UP_TO_DATE";
+                ota_status = "UP_TO_DATE"; networkMgr.forcePublishStatus();
                 Serial.println("[OTA] Anda sudah menggunakan versi terbaru atau sama.");
             }
         } else {
@@ -155,7 +157,7 @@ bool OTAUpdater::performUpdate(const char* url, const char* tag) {
     bool canBegin = Update.begin(contentLength, U_FLASH);
     
     if (canBegin) {
-        ota_status = "DOWNLOADING_v1.1.0";
+        ota_status = "DOWNLOADING_FIRMWARE"; networkMgr.forcePublishStatus();
         Serial.println("[OTA] Memulai penulisan ke memori Flash...");
         
         Update.onProgress([](size_t progress, size_t total) {

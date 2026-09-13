@@ -155,6 +155,10 @@ bool NetworkManager::isConnected() {
     return mqtt.connected();
 }
 
+void NetworkManager::forcePublishStatus() {
+    publishStatus("online", true, 0.0, "FLAT");
+}
+
 void NetworkManager::publishStatus(String status, bool sensor_ok, float tilt_angle, String pose) {
     if (!mqtt.connected()) return;
     String willTopic = "lindu/sensor/" + String(_configMgr->config.node_id) + "/status";
