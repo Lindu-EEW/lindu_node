@@ -46,7 +46,7 @@ void networkTaskCode(void* parameter) {
     
     pixels.begin();
     pinMode(BUZZER_PIN, OUTPUT);
-    analogWrite(BUZZER_PIN, 0);
+    noTone(BUZZER_PIN); pinMode(BUZZER_PIN, INPUT);
     
     // ESP32-S3 PWM Timer Allocation untuk Servo (Hanya alokasi, tidak di-enable)
     ESP32PWM::allocateTimer(0);
@@ -107,7 +107,7 @@ void networkTaskCode(void* parameter) {
                     analogWrite(BUZZER_PIN, 128); // 50% Duty Cycle (Max Volume Tone untuk Speaker)
                 } else {
                     pixels.setPixelColor(0, pixels.Color(0, 0, 0));
-                    analogWrite(BUZZER_PIN, 0);
+                    noTone(BUZZER_PIN); pinMode(BUZZER_PIN, INPUT);
                 }
             } else if (is_local_alarm) {
                 // DETEKSI GETARAN LOKAL (Menunggu Konfirmasi Node Lain): Berkedip Pink & Low Level Beep
@@ -116,7 +116,7 @@ void networkTaskCode(void* parameter) {
                     analogWrite(BUZZER_PIN, 2); // 1% Duty Cycle (Sangat pelan untuk Speaker)
                 } else {
                     pixels.setPixelColor(0, pixels.Color(0, 0, 0));
-                    analogWrite(BUZZER_PIN, 0);
+                    noTone(BUZZER_PIN); pinMode(BUZZER_PIN, INPUT);
                 }
             } else if (!sensorMgr.sensor_ok && !hw611_ok) {
                 
@@ -139,16 +139,15 @@ void networkTaskCode(void* parameter) {
             else pixels.setPixelColor(0, pixels.Color(0, 0, 0));
         }
         
-        // Matikan buzzer sepenuhnya jika kondisi aman (Gunakan State Tracker untuk mencegah glitch PWM)
+        // Matikan speaker sepenuhnya jika kondisi aman
         static bool is_buzzer_active = false;
         
         if (is_global_alarm || is_local_alarm) {
             is_buzzer_active = true;
         } else {
             if (is_buzzer_active) {
-                analogWrite(BUZZER_PIN, 0); 
-                pinMode(BUZZER_PIN, OUTPUT);
-                digitalWrite(BUZZER_PIN, LOW); // Matikan paksa di level hardware
+                noTone(BUZZER_PIN); // Matikan nada
+                pinMode(BUZZER_PIN, INPUT); // Paksa pin menjadi netral (High-Impedance) untuk memutus arus ke speaker
                 is_buzzer_active = false;
             }
         }
@@ -187,7 +186,7 @@ void setup() {
     // Nyalakan LED biru saat sedang setup WiFi
     pixels.begin();
     pinMode(BUZZER_PIN, OUTPUT);
-    analogWrite(BUZZER_PIN, 0);
+    noTone(BUZZER_PIN); pinMode(BUZZER_PIN, INPUT);
     
     // ESP32-S3 PWM Timer Allocation untuk Servo (Hanya alokasi, tidak di-enable)
     ESP32PWM::allocateTimer(0);
