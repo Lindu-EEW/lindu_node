@@ -110,14 +110,23 @@ void NetworkManager::mqttCallback(char* topic, byte* payload, unsigned int lengt
             } else {
                 Serial.println("[i] Epicenter terlalu jauh. Abaikan.");
             }
-        } else if (doc["cmd"] == "reset_valve") {
+        } else if (doc["cmd"] == "reset_valve" || doc["cmd"] == "open_valve" || doc["cmd"] == "enable_valve") {
             String target = doc["target_node"] | "all";
             String my_id = String(instance->_configMgr->config.node_id);
             if (target == "all" || target == my_id) {
-                Serial.println("[i] Sistem di-Reset Manual. Valve Dibuka.");
+                Serial.println("[i] Perintah Manual: Valve DIBUKA (Enable/Reset).");
                 is_valve_locked = false;
             } else {
-                Serial.println("[i] Reset diabaikan (Bukan untuk Node ini).");
+                Serial.println("[i] Perintah diabaikan (Bukan untuk Node ini).");
+            }
+        } else if (doc["cmd"] == "close_valve" || doc["cmd"] == "disable_valve") {
+            String target = doc["target_node"] | "all";
+            String my_id = String(instance->_configMgr->config.node_id);
+            if (target == "all" || target == my_id) {
+                Serial.println("[i] Perintah Manual: Valve DITUTUP (Disable/Lock).");
+                is_valve_locked = true;
+            } else {
+                Serial.println("[i] Perintah diabaikan (Bukan untuk Node ini).");
             }
         }
     }
