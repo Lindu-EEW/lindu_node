@@ -46,7 +46,7 @@ void networkTaskCode(void* parameter) {
     
     pixels.begin();
     pinMode(BUZZER_PIN, OUTPUT);
-    analogWrite(BUZZER_PIN, 0);
+    digitalWrite(BUZZER_PIN, LOW);
     
     // ESP32-S3 PWM Timer Allocation untuk Servo (Hanya alokasi, tidak di-enable)
     ESP32PWM::allocateTimer(0);
@@ -103,10 +103,10 @@ void networkTaskCode(void* parameter) {
                 // KONFIRMASI GEMPA (DARI SERVER): Berkedip Merah Cepat (Strobo) & Buzzer Menyala
                 if ((millis() / 100) % 2 == 0) {
                     pixels.setPixelColor(0, pixels.Color(255, 0, 0));
-                    analogWrite(BUZZER_PIN, 5); // Volume sangat rendah (5 dari 255)
+                    digitalWrite(BUZZER_PIN, HIGH); // Dikembalikan ke suara BEEP penuh agar jelas
                 } else {
                     pixels.setPixelColor(0, pixels.Color(0, 0, 0));
-                    analogWrite(BUZZER_PIN, 0);
+                    digitalWrite(BUZZER_PIN, LOW);
                 }
             } else if (is_local_alarm) {
                 
@@ -167,7 +167,7 @@ void setup() {
     // Nyalakan LED biru saat sedang setup WiFi
     pixels.begin();
     pinMode(BUZZER_PIN, OUTPUT);
-    analogWrite(BUZZER_PIN, 0);
+    digitalWrite(BUZZER_PIN, LOW);
     
     // ESP32-S3 PWM Timer Allocation untuk Servo (Hanya alokasi, tidak di-enable)
     ESP32PWM::allocateTimer(0);
