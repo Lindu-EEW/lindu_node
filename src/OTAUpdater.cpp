@@ -51,7 +51,7 @@ void OTAUpdater::loop() {
     if (_last_check == 0 && millis() > 30000) {
         checkForUpdate();
         _last_check = millis();
-    } else if (millis() - _last_check > 86400000) {
+    } else if (millis() - _last_check > 300000) {
         checkForUpdate();
         _last_check = millis();
     }
