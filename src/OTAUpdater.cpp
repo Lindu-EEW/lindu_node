@@ -157,7 +157,7 @@ bool OTAUpdater::performUpdate(const char* url, const char* tag) {
                 last_blink = millis();
                 static bool toggle = false;
                 toggle = !toggle;
-                pixels.setPixelColor(0, toggle ? pixels.Color(0, 255, 255) : pixels.Color(0, 0, 0)); // Cyan = Updating
+                pixels.setPixelColor(0, toggle ? pixels.Color(255, 255, 0) : pixels.Color(0, 0, 0)); // Yellow = Updating
                 pixels.show();
             }
             if (progress % (total / 10) == 0) {
