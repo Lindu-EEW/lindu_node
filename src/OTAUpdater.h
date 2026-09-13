@@ -19,6 +19,7 @@ public:
     void begin();
     void loop();
     void confirmWorking();
+    String ota_status = "IDLE";
 
 private:
     unsigned long _last_check;

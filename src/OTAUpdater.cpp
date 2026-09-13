@@ -63,6 +63,7 @@ void OTAUpdater::loop() {
 void OTAUpdater::checkForUpdate() {
     if (WiFi.status() != WL_CONNECTED) return;
     
+    ota_status = "CHECKING_GITHUB";
     Serial.println("[OTA] Mengecek versi terbaru di GitHub...");
     
     WiFiClientSecure client;
@@ -107,18 +108,22 @@ void OTAUpdater::checkForUpdate() {
                         // Jika firmware baru gagal boot (crash), dia akan rollback dan blacklist ini tetap ada.
                         // Jika sukses boot, firmware baru akan menghapus blacklist ini di begin().
                         _prefs.putString("failed_tag", latest_tag);
+                        ota_status = "UPDATE_SUCCESS_RESTARTING";
                         Serial.println("[OTA] Update selesai! Restarting...");
                         delay(1000);
                         ESP.restart();
                     } else {
+                        ota_status = "ERROR_UPDATE_FAILED";
                         Serial.println("[OTA] Update gagal!");
                     }
                 }
             } else {
+                ota_status = "UP_TO_DATE";
                 Serial.println("[OTA] Anda sudah menggunakan versi terbaru atau sama.");
             }
         }
     } else {
+        ota_status = "ERROR_API_" + String(httpCode);
         Serial.printf("[OTA] Gagal menghubungi GitHub API. Kode: %d\n", httpCode);
     }
     http.end();
@@ -134,6 +139,7 @@ bool OTAUpdater::performUpdate(const char* url, const char* tag) {
     int httpCode = http.GET();
     
     if (httpCode != 200) {
+        ota_status = "ERROR_DOWNLOAD_" + String(httpCode);
         Serial.printf("[OTA] Gagal mengunduh firmware. Kode: %d\n", httpCode);
         return false;
     }
@@ -142,6 +148,7 @@ bool OTAUpdater::performUpdate(const char* url, const char* tag) {
     bool canBegin = Update.begin(contentLength, U_FLASH);
     
     if (canBegin) {
+        ota_status = "DOWNLOADING_v1.1.0";
         Serial.println("[OTA] Memulai penulisan ke memori Flash...");
         
         Update.onProgress([](size_t progress, size_t total) {
