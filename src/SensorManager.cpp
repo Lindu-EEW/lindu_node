@@ -5,6 +5,8 @@ void SensorManager::begin(QueueHandle_t queue) {
 
   Wire.begin(12, 13);  // Akselerometer
   Wire1.begin(10, 11); // Cuaca
+  Wire.setTimeOut(20); // 20ms timeout untuk mencegah Hang di Core 1
+  Wire1.setTimeOut(20);
 
   _bmp = new Adafruit_BMP280(&Wire1);
 
