@@ -135,6 +135,12 @@ void networkTaskCode(void* parameter) {
             if ((millis() / 500) % 2 == 0) pixels.setPixelColor(0, pixels.Color(30, 0, 0));
             else pixels.setPixelColor(0, pixels.Color(0, 0, 0));
         }
+        
+        // Matikan buzzer sepenuhnya jika kondisi aman
+        if (!is_global_alarm && !is_local_alarm) {
+            analogWrite(BUZZER_PIN, 0);
+        }
+        
         pixels.show();
         
         // Cek apakah ada data sensor di antrean (Non-Blocking)
