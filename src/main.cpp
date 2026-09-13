@@ -48,14 +48,13 @@ void networkTaskCode(void* parameter) {
     pinMode(BUZZER_PIN, OUTPUT);
     analogWrite(BUZZER_PIN, 0);
     
-    // ESP32-S3 PWM Timer Allocation untuk Servo
+    // ESP32-S3 PWM Timer Allocation untuk Servo (Hanya alokasi, tidak di-enable)
     ESP32PWM::allocateTimer(0);
     ESP32PWM::allocateTimer(1);
     ESP32PWM::allocateTimer(2);
     ESP32PWM::allocateTimer(3);
     myServo.setPeriodHertz(50);
-    myServo.attach(SERVO_PIN, 500, 2400); // Lebar pulsa standar Servo SG90
-    myServo.write(0);
+    // Servo sengaja TIDAK di-attach di sini agar tidak auto-enable saat alat menyala
     float breathAngle = 0;
     
     SensorEvent ev;
@@ -79,14 +78,20 @@ void networkTaskCode(void* parameter) {
             
             bool hw611_ok = sensorMgr.bme_ok || sensorMgr.bmp_ok;
             
-            // LOGIKA VALVE MANUAL RESET (EDGE TRIGGER agar Servo tidak bergetar/buzzer)
+            // LOGIKA VALVE MANUAL RESET (Hanya nyalakan motor saat diperintah sistem)
             static bool last_valve_state = false;
             if (is_valve_locked != last_valve_state) {
+                myServo.attach(SERVO_PIN, 500, 2400); // Sistem meng-enable motor
+                
                 if (is_valve_locked) {
-                    myServo.write(90); // Mengunci (Tutup) sampai direset
+                    myServo.write(90); // Sistem menggerakkan katup ke posisi Tutup (90)
                 } else {
-                    myServo.write(0);  // Normal (Buka)
+                    myServo.write(0);  // Sistem mereset katup ke posisi Buka (0)
                 }
+                
+                vTaskDelay(pdMS_TO_TICKS(1000)); // Beri waktu 1 detik agar motor selesai berputar fisik
+                myServo.detach(); // Sistem mematikan/melepas motor kembali (Hemat baterai & tidak memaksa)
+                
                 last_valve_state = is_valve_locked;
             }
             bool is_global_alarm = (millis() < global_alarm_until && global_alarm_until > 0);
@@ -164,14 +169,13 @@ void setup() {
     pinMode(BUZZER_PIN, OUTPUT);
     analogWrite(BUZZER_PIN, 0);
     
-    // ESP32-S3 PWM Timer Allocation untuk Servo
+    // ESP32-S3 PWM Timer Allocation untuk Servo (Hanya alokasi, tidak di-enable)
     ESP32PWM::allocateTimer(0);
     ESP32PWM::allocateTimer(1);
     ESP32PWM::allocateTimer(2);
     ESP32PWM::allocateTimer(3);
     myServo.setPeriodHertz(50);
-    myServo.attach(SERVO_PIN, 500, 2400); // Lebar pulsa standar Servo SG90
-    myServo.write(0);
+    // Servo sengaja TIDAK di-attach di sini agar tidak auto-enable saat alat menyala
     pixels.setPixelColor(0, pixels.Color(0, 0, 40));
     pixels.show();
     
