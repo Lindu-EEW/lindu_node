@@ -39,6 +39,7 @@ void OTAUpdater::begin() {
         if (ota_state == ESP_OTA_IMG_PENDING_VERIFY) {
             Serial.println("[OTA] Firmware baru sukses di-boot! Menandai sebagai valid...");
             esp_ota_mark_app_valid_cancel_rollback();
+            _prefs.remove("failed_tag"); // Hapus blacklist karena berhasil boot
         }
     }
 }
@@ -65,7 +66,7 @@ void OTAUpdater::checkForUpdate() {
     Serial.println("[OTA] Mengecek versi terbaru di GitHub...");
     
     WiFiClientSecure client;
-    client.setCACert(rootCACertificate);
+    client.setInsecure();
     HTTPClient http;
     
     String url = String("https://api.github.com/repos/") + REPO_OWNER + "/" + REPO_NAME + "/releases/latest";
@@ -125,7 +126,7 @@ void OTAUpdater::checkForUpdate() {
 
 bool OTAUpdater::performUpdate(const char* url, const char* tag) {
     WiFiClientSecure client;
-    client.setCACert(rootCACertificate);
+    client.setInsecure();
     HTTPClient http;
     
     http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
