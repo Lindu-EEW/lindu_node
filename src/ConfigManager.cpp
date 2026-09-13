@@ -48,7 +48,7 @@ bool ConfigManager::startCaptivePortal() {
     // ponytail: blocking 3 menit, jika gagal biarkan Watchdog mereset
     wm.setConfigPortalTimeout(180); 
 
-    if (!wm.autoConnect("Lindu_Setup")) {
+    if (!wm.autoConnect(config.node_id)) {
         return false;
     }
 
