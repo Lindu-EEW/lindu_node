@@ -54,7 +54,7 @@ void OTAUpdater::loop() {
     if (_last_check == 0 && millis() > 30000) {
         checkForUpdate();
         _last_check = millis();
-    } else if (millis() - _last_check > 43200000 // 12 Jam) {
+    } else if (millis() - _last_check > 43200000) { // 12 Jam
         checkForUpdate();
         _last_check = millis();
     }
