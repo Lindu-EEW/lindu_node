@@ -17,7 +17,7 @@ void NetworkManager::begin(ConfigManager* configMgr) {
     instance = this;
     
     // Ganti IP broker ke IP laptop user
-    mqtt.setServer("Likos-MacBook-Air.local", 1883);
+    mqtt.setServer("192.168.68.105", 1883);
     mqtt.setCallback(NetworkManager::mqttCallback);
 }
 
