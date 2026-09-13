@@ -12,6 +12,7 @@
 
 #define RGB_PIN 48
 #define SERVO_PIN 5
+#define BUZZER_PIN 6
 
 Servo myServo; // Default RGB LED pin for ESP32-S3 DevKitC
 
@@ -44,6 +45,8 @@ void networkTaskCode(void* parameter) {
     configTime(0, 0, "pool.ntp.org", "time.nist.gov");
     
     pixels.begin();
+    pinMode(BUZZER_PIN, OUTPUT);
+    digitalWrite(BUZZER_PIN, LOW);
     
     // ESP32-S3 PWM Timer Allocation untuk Servo
     ESP32PWM::allocateTimer(0);
@@ -92,9 +95,14 @@ void networkTaskCode(void* parameter) {
             if (is_global_alarm) {
                 
                 
-                // KONFIRMASI GEMPA (DARI SERVER): Berkedip Merah Cepat (Strobo)
-                if ((millis() / 100) % 2 == 0) pixels.setPixelColor(0, pixels.Color(255, 0, 0));
-                else pixels.setPixelColor(0, pixels.Color(0, 0, 0));
+                // KONFIRMASI GEMPA (DARI SERVER): Berkedip Merah Cepat (Strobo) & Buzzer Menyala
+                if ((millis() / 100) % 2 == 0) {
+                    pixels.setPixelColor(0, pixels.Color(255, 0, 0));
+                    digitalWrite(BUZZER_PIN, HIGH);
+                } else {
+                    pixels.setPixelColor(0, pixels.Color(0, 0, 0));
+                    digitalWrite(BUZZER_PIN, LOW);
+                }
             } else if (is_local_alarm) {
                 
                 // DETEKSI GETARAN LOKAL (Menunggu Konfirmasi Node Lain): Berkedip Pink Pelan
@@ -153,6 +161,8 @@ void setup() {
     
     // Nyalakan LED biru saat sedang setup WiFi
     pixels.begin();
+    pinMode(BUZZER_PIN, OUTPUT);
+    digitalWrite(BUZZER_PIN, LOW);
     
     // ESP32-S3 PWM Timer Allocation untuk Servo
     ESP32PWM::allocateTimer(0);
