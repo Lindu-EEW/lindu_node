@@ -121,6 +121,10 @@ void OTAUpdater::checkForUpdate() {
                 ota_status = "UP_TO_DATE";
                 Serial.println("[OTA] Anda sudah menggunakan versi terbaru atau sama.");
             }
+        } else {
+            ota_status = "ERROR_JSON_PARSE";
+            Serial.print("[OTA] JSON Parse Failed: ");
+            Serial.println(error.c_str());
         }
     } else {
         ota_status = "ERROR_API_" + String(httpCode);
