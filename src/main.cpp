@@ -26,6 +26,7 @@ unsigned long global_alarm_until = 0;
 bool is_valve_locked = false;
 float local_latest_pga = 0.0;
 unsigned long local_alarm_until = 0;
+unsigned long identify_until = 0;
 TaskHandle_t networkTaskHandle;
 
 // Helper: Ambil Waktu Epoch NTP
@@ -100,7 +101,12 @@ void networkTaskCode(void* parameter) {
             }
 
             
-            if (is_global_alarm) {
+            if (millis() < identify_until) {
+                // IDENTIFY MODE: Berkedip Putih
+                if ((millis() / 200) % 2 == 0) pixels.setPixelColor(0, pixels.Color(255, 255, 255));
+                else pixels.setPixelColor(0, pixels.Color(0, 0, 0));
+                digitalWrite(BUZZER_PIN, HIGH);
+            } else if (is_global_alarm) {
                 // KONFIRMASI GEMPA (DARI SERVER): Berkedip Merah Cepat (Strobo) & Buzzer Menyala
                 if ((millis() / 100) % 2 == 0) {
                     pixels.setPixelColor(0, pixels.Color(255, 0, 0));
