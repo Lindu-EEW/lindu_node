@@ -1,5 +1,10 @@
 #include "SensorManager.h"
 
+bool probeI2C(uint8_t address) {
+  Wire1.beginTransmission(address);
+  return (Wire1.endTransmission() == 0);
+}
+
 void SensorManager::begin(QueueHandle_t queue) {
   _eventQueue = queue;
 
@@ -14,9 +19,16 @@ void SensorManager::begin(QueueHandle_t queue) {
     _lsm6ds3.setAccelDataRate(LSM6DS_RATE_1_66K_HZ);
   }
 
-  bme_ok = _bme.begin(0x76, &Wire1) || _bme.begin(0x77, &Wire1);
-  if (!bme_ok)
-    bmp_ok = _bmp->begin(0x76) || _bmp->begin(0x77);
+  // PROBE I2C DULU UNTUK MENCEGAH HANG
+  if (probeI2C(0x76) || probeI2C(0x77)) {
+    bme_ok = _bme.begin(0x76, &Wire1) || _bme.begin(0x77, &Wire1);
+    if (!bme_ok) {
+      bmp_ok = _bmp->begin(0x76) || _bmp->begin(0x77);
+    }
+  } else {
+    bme_ok = false;
+    bmp_ok = false;
+  }
 }
 
 bool SensorManager::selfTest() {
@@ -29,9 +41,12 @@ void SensorManager::loop() {
   
   if (!bme_ok && !bmp_ok && cuaca_retry_count < 3 && millis() - last_cuaca_check > 5000) {
     cuaca_retry_count++;
-    bme_ok = _bme.begin(0x76, &Wire1) || _bme.begin(0x77, &Wire1);
-    if (!bme_ok)
-      bmp_ok = _bmp->begin(0x76) || _bmp->begin(0x77);
+    if (probeI2C(0x76) || probeI2C(0x77)) {
+      bme_ok = _bme.begin(0x76, &Wire1) || _bme.begin(0x77, &Wire1);
+      if (!bme_ok) {
+        bmp_ok = _bmp->begin(0x76) || _bmp->begin(0x77);
+      }
+    }
     last_cuaca_check = millis();
   }
 
