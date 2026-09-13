@@ -130,6 +130,14 @@ void NetworkManager::mqttCallback(char* topic, byte* payload, unsigned int lengt
             } else {
                 Serial.println("[i] Perintah Disable diabaikan (Bukan untuk Node ini).");
             }
+        } else if (doc["cmd"] == "force_update" || doc["cmd"] == "reboot") {
+            String target = doc["target_node"] | "all";
+            String my_id = String(instance->_configMgr->config.node_id);
+            if (target == "all" || target == my_id) {
+                Serial.println("[i] Perintah Sistem: FORCE UPDATE. Restarting ESP32 untuk menarik OTA dari GitHub...");
+                delay(1000);
+                ESP.restart();
+            }
         }
     }
 }
