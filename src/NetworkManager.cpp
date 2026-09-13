@@ -112,3 +112,10 @@ void NetworkManager::mqttCallback(char* topic, byte* payload, unsigned int lengt
 bool NetworkManager::isConnected() {
     return mqtt.connected();
 }
+
+void NetworkManager::publishStatus(String status, bool sensor_ok, float tilt_angle, String pose) {
+    if (!mqtt.connected()) return;
+    String willTopic = "lindu/sensor/" + String(_configMgr->config.node_id) + "/status";
+    String statusPayload = "{\"status\":\"" + status + "\",\"node_id\":\"" + String(_configMgr->config.node_id) + "\",\"lat\":" + String(_configMgr->config.lat, 4) + ",\"lon\":" + String(_configMgr->config.lon, 4) + ",\"pose\":\"" + pose + "\",\"tilt_angle\":" + String(tilt_angle, 1) + ",\"sensor_ok\":" + String(sensor_ok ? "true" : "false") + "}";
+    mqtt.publish(willTopic.c_str(), statusPayload.c_str(), true);
+}

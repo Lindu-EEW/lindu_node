@@ -46,6 +46,13 @@ void networkTaskCode(void* parameter) {
     while(1) {
         networkMgr.loop(); // Handle rutin MQTT
         
+        // Heartbeat status setiap 10 detik
+        static unsigned long last_status = 0;
+        if (millis() - last_status >= 10000) {
+            networkMgr.publishStatus("online", sensorMgr.sensor_ok, sensorMgr.getTiltAngle(), sensorMgr.getPose());
+            last_status = millis();
+        }
+        
         // Animasi LED Cerdas (Sesuai Status Sensor & WiFi)
         if (WiFi.status() == WL_CONNECTED && networkMgr.isConnected()) {
             otaUpdater.loop();
