@@ -1,4 +1,6 @@
 #include "OTAUpdater.h"
+#include <Adafruit_NeoPixel.h>
+extern Adafruit_NeoPixel pixels;
 
 OTAUpdater otaUpdater;
 
