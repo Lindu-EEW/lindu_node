@@ -76,7 +76,7 @@ void OTAUpdater::checkForUpdate() {
     
     if (httpCode == 200) {
         String payload = http.getString();
-        StaticJsonDocument<2048> doc;
+        DynamicJsonDocument doc(8192);
         DeserializationError error = deserializeJson(doc, payload);
         
         if (!error) {
