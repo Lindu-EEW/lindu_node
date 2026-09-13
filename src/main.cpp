@@ -76,11 +76,15 @@ void networkTaskCode(void* parameter) {
             
             bool hw611_ok = sensorMgr.bme_ok || sensorMgr.bmp_ok;
             
-            // LOGIKA VALVE MANUAL RESET
-            if (is_valve_locked) {
-                myServo.write(90); // Mengunci (Tutup) sampai direset
-            } else {
-                myServo.write(0);  // Normal (Buka)
+            // LOGIKA VALVE MANUAL RESET (EDGE TRIGGER agar Servo tidak bergetar/buzzer)
+            static bool last_valve_state = false;
+            if (is_valve_locked != last_valve_state) {
+                if (is_valve_locked) {
+                    myServo.write(90); // Mengunci (Tutup) sampai direset
+                } else {
+                    myServo.write(0);  // Normal (Buka)
+                }
+                last_valve_state = is_valve_locked;
             }
             bool is_global_alarm = (millis() < global_alarm_until && global_alarm_until > 0);
             bool is_local_alarm = (millis() < local_alarm_until && local_alarm_until > 0);
