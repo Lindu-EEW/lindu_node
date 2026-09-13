@@ -69,6 +69,10 @@ void networkTaskCode(void* parameter) {
             last_status = millis();
         }
         
+        // Cek status alarm global dan lokal
+        bool is_global_alarm = (millis() < global_alarm_until && global_alarm_until > 0);
+        bool is_local_alarm = (millis() < local_alarm_until && local_alarm_until > 0);
+        
         // Animasi LED Cerdas (Sesuai Status Sensor & WiFi)
         if (WiFi.status() == WL_CONNECTED && networkMgr.isConnected()) {
             otaUpdater.loop();
@@ -94,8 +98,7 @@ void networkTaskCode(void* parameter) {
                 
                 last_valve_state = is_valve_locked;
             }
-            bool is_global_alarm = (millis() < global_alarm_until && global_alarm_until > 0);
-            bool is_local_alarm = (millis() < local_alarm_until && local_alarm_until > 0);
+
             
             if (is_global_alarm) {
                 // KONFIRMASI GEMPA (DARI SERVER): Berkedip Merah Cepat (Strobo) & Buzzer Menyala
