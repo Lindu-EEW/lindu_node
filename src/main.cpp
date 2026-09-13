@@ -110,12 +110,9 @@ void networkTaskCode(void* parameter) {
                     pinMode(BUZZER_PIN, OUTPUT); digitalWrite(BUZZER_PIN, HIGH); // ACTIVE LOW: HIGH artinya MATI
                 }
             } else if (is_local_alarm) {
-                // DETEKSI GETARAN LOKAL (Menunggu Konfirmasi Node Lain): Berkedip Pink + Suara TICK pelan
+                // DETEKSI GETARAN LOKAL (Menunggu Konfirmasi Node Lain): HANYA Berkedip Pink
                 if ((millis() / 500) % 2 == 0) {
                     pixels.setPixelColor(0, pixels.Color(255, 20, 147)); // Hot Pink
-                    // Suara TICK super singkat (10ms) agar tidak nyaring
-                    if (millis() % 500 < 10) digitalWrite(BUZZER_PIN, LOW); 
-                    else digitalWrite(BUZZER_PIN, HIGH);
                 } else {
                     pixels.setPixelColor(0, pixels.Color(0, 0, 0));
                     digitalWrite(BUZZER_PIN, HIGH);
@@ -158,7 +155,16 @@ void networkTaskCode(void* parameter) {
         // Cek apakah ada data sensor di antrean (Non-Blocking)
         if (xQueueReceive(eventQueue, &ev, 0) == pdTRUE) {
             local_latest_pga = ev.pga;
-            if (ev.pga > 0.12) local_alarm_until = millis() + 5000; // Tahan warna pink selama 5 detik
+            if (ev.pga > 0.12) {
+                local_alarm_until = millis() + 5000; // Tahan warna pink selama 5 detik
+                
+                // TICK instan persis di detik terjadinya getaran fisik
+                if (!is_global_alarm) { 
+                    digitalWrite(BUZZER_PIN, LOW); // Active-Low ON
+                    vTaskDelay(pdMS_TO_TICKS(15)); // Tahan 15ms
+                    digitalWrite(BUZZER_PIN, HIGH); // Active-Low OFF
+                }
+            }
             networkMgr.publishEvent(
                 ev.pga, ev.ratio, ev.freq_hz,
                 ev.accel_x, ev.accel_y, ev.accel_z,
