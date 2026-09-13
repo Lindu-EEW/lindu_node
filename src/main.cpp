@@ -158,12 +158,18 @@ void networkTaskCode(void* parameter) {
             if (ev.pga > 0.12) {
                 local_alarm_until = millis() + 5000; // Tahan warna pink selama 5 detik
                 
-                // TICK instan dengan Cooldown (Debounce) agar 1 ketukan = 1 bunyi
+                // TICK Dinamis: Volume/Intensitas diwakili oleh durasi (Haptic Feedback)
                 static unsigned long last_tick_time = 0;
                 if (!is_global_alarm && (millis() - last_tick_time > 500)) { 
                     last_tick_time = millis();
+                    
+                    // Semakin besar getaran (PGA), semakin lama durasi beep-nya
+                    int beep_duration = (int)(ev.pga * 40.0);
+                    if (beep_duration < 5) beep_duration = 5;     // Getaran pelan = 5ms (Tik kecil)
+                    if (beep_duration > 100) beep_duration = 100; // Getaran keras = 100ms (Bip panjang/keras)
+                    
                     digitalWrite(BUZZER_PIN, LOW); // Active-Low ON
-                    vTaskDelay(pdMS_TO_TICKS(20)); // Tahan 20ms agar terdengar jelas
+                    vTaskDelay(pdMS_TO_TICKS(beep_duration));
                     digitalWrite(BUZZER_PIN, HIGH); // Active-Low OFF
                 }
             }
