@@ -72,20 +72,19 @@ void networkTaskCode(void* parameter) {
             bool is_local_alarm = (millis() < local_alarm_until && local_alarm_until > 0);
             
             if (is_global_alarm) {
-                // Ayunkan Servo Kiri-Kanan
-                int servo_angle = (millis() / 200) % 2 == 0 ? 90 : 0;
-                myServo.write(servo_angle);
+                // SIMULASI VALVE AIR/GAS (Otomatis Menutup)
+                myServo.write(90); // Putar 90 Derajat (Tutup Katup!)
                 
                 // KONFIRMASI GEMPA (DARI SERVER): Berkedip Merah Cepat (Strobo)
                 if ((millis() / 100) % 2 == 0) pixels.setPixelColor(0, pixels.Color(255, 0, 0));
                 else pixels.setPixelColor(0, pixels.Color(0, 0, 0));
             } else if (is_local_alarm) {
-                myServo.write(0); // Servo Standby
+                myServo.write(0); // Valve Terbuka (Standby)
                 // DETEKSI GETARAN LOKAL (Menunggu Konfirmasi Node Lain): Berkedip Pink Pelan
                 if ((millis() / 500) % 2 == 0) pixels.setPixelColor(0, pixels.Color(255, 20, 147)); // Hot Pink
                 else pixels.setPixelColor(0, pixels.Color(0, 0, 0));
             } else if (!sensorMgr.sensor_ok && !hw611_ok) {
-                myServo.write(0); // Servo Standby
+                myServo.write(0); // Valve Terbuka (Standby)
                 // Semua sensor mati: Berkedip Merah Cepat (Bahaya Fatal)
                 if ((millis() / 200) % 2 == 0) pixels.setPixelColor(0, pixels.Color(50, 0, 0));
                 else pixels.setPixelColor(0, pixels.Color(0, 0, 0));
