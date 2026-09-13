@@ -111,8 +111,14 @@ void NetworkManager::mqttCallback(char* topic, byte* payload, unsigned int lengt
                 Serial.println("[i] Epicenter terlalu jauh. Abaikan.");
             }
         } else if (doc["cmd"] == "reset_valve") {
-            Serial.println("[i] Sistem di-Reset Manual. Valve Dibuka.");
-            is_valve_locked = false;
+            String target = doc["target_node"] | "all";
+            String my_id = String(instance->_configMgr->config.node_id);
+            if (target == "all" || target == my_id) {
+                Serial.println("[i] Sistem di-Reset Manual. Valve Dibuka.");
+                is_valve_locked = false;
+            } else {
+                Serial.println("[i] Reset diabaikan (Bukan untuk Node ini).");
+            }
         }
     }
 }
