@@ -110,13 +110,16 @@ void networkTaskCode(void* parameter) {
                     pinMode(BUZZER_PIN, OUTPUT); digitalWrite(BUZZER_PIN, HIGH); // ACTIVE LOW: HIGH artinya MATI
                 }
             } else if (is_local_alarm) {
-                // DETEKSI GETARAN LOKAL (Menunggu Konfirmasi Node Lain): HANYA Berkedip Pink (Buzzer Hening)
+                // DETEKSI GETARAN LOKAL (Menunggu Konfirmasi Node Lain): Berkedip Pink + Suara TICK pelan
                 if ((millis() / 500) % 2 == 0) {
                     pixels.setPixelColor(0, pixels.Color(255, 20, 147)); // Hot Pink
+                    // Suara TICK super singkat (10ms) agar tidak nyaring
+                    if (millis() % 500 < 10) digitalWrite(BUZZER_PIN, LOW); 
+                    else digitalWrite(BUZZER_PIN, HIGH);
                 } else {
                     pixels.setPixelColor(0, pixels.Color(0, 0, 0));
-                }
-                digitalWrite(BUZZER_PIN, HIGH); // ACTIVE LOW: MATI} else if (!sensorMgr.sensor_ok && !hw611_ok) {
+                    digitalWrite(BUZZER_PIN, HIGH);
+                }} else if (!sensorMgr.sensor_ok && !hw611_ok) {
                 
                 // Semua sensor mati: Berkedip Merah Cepat (Bahaya Fatal)
                 if ((millis() / 200) % 2 == 0) pixels.setPixelColor(0, pixels.Color(50, 0, 0));
