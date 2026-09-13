@@ -75,9 +75,12 @@ void OTAUpdater::checkForUpdate() {
     int httpCode = http.GET();
     
     if (httpCode == 200) {
-        String payload = http.getString();
-        DynamicJsonDocument doc(8192);
-        DeserializationError error = deserializeJson(doc, payload);
+        // [BULLETPROOF] Menggunakan Stream dan Filter agar hemat RAM (anti-crash walau JSON GitHub raksasa)
+        StaticJsonDocument<200> filter;
+        filter["tag_name"] = true;
+        
+        DynamicJsonDocument doc(1024);
+        DeserializationError error = deserializeJson(doc, http.getStream(), DeserializationOption::Filter(filter));
         
         if (!error) {
             String latest_tag = doc["tag_name"].as<String>();
