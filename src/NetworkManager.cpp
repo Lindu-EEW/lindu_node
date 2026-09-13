@@ -112,7 +112,6 @@ void NetworkManager::mqttCallback(char* topic, byte* payload, unsigned int lengt
         }
     }
 }
-}
 
 bool NetworkManager::isConnected() {
     return mqtt.connected();
