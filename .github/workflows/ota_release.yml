@@ -1,0 +1,47 @@
+name: Build and Release OTA Firmware
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
+      - name: Install PlatformIO
+        run: |
+          python -m pip install --upgrade pip
+          pip install platformio
+
+      - name: Inject Version Tag into Code
+        run: |
+          TAG_NAME=${GITHUB_REF#refs/tags/}
+          echo "Patching OTAUpdater.h with version: $TAG_NAME"
+          sed -i "s/#define CURRENT_VERSION.*/#define CURRENT_VERSION \"$TAG_NAME\"/" src/esp32_sensor_node/src/OTAUpdater.h
+          cat src/esp32_sensor_node/src/OTAUpdater.h | grep CURRENT_VERSION
+
+      - name: Compile ESP32 Firmware
+        run: |
+          cd src/esp32_sensor_node
+          pio run -e esp32s3
+
+      - name: Rename Firmware Binary
+        run: |
+          mv src/esp32_sensor_node/.pio/build/esp32s3/firmware.bin firmware_esp32s3.bin
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: firmware_esp32s3.bin
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
