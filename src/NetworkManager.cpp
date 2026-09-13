@@ -101,12 +101,17 @@ void NetworkManager::mqttCallback(char* topic, byte* payload, unsigned int lengt
                 e_lat, e_lon
             );
             
-            if (dist < 50.0) {
-                Serial.println("[!] SIRINE MENYALA! Epicenter berjarak < 50km.");
-                global_alarm_until = millis() + 30000; // Nyalakan alarm selama 30 detik
+            bool is_unprovisioned = (instance->_configMgr->config.lat == 0.0 && instance->_configMgr->config.lon == 0.0);
+            
+            if (dist < 50.0 || is_unprovisioned) {
+                Serial.println("[!] SIRINE MENYALA! Epicenter berjarak < 50km (Atau Bypass Test).");
+                global_alarm_until = millis() + 15000;
+            } else {
+                Serial.println("[i] Epicenter terlalu jauh. Abaikan.");
             }
         }
     }
+}
 }
 
 bool NetworkManager::isConnected() {
