@@ -98,21 +98,23 @@ void networkTaskCode(void* parameter) {
             bool is_local_alarm = (millis() < local_alarm_until && local_alarm_until > 0);
             
             if (is_global_alarm) {
-                
-                
                 // KONFIRMASI GEMPA (DARI SERVER): Berkedip Merah Cepat (Strobo) & Buzzer Menyala
                 if ((millis() / 100) % 2 == 0) {
                     pixels.setPixelColor(0, pixels.Color(255, 0, 0));
-                    digitalWrite(BUZZER_PIN, HIGH); // Dikembalikan ke suara BEEP penuh agar jelas
+                    analogWrite(BUZZER_PIN, 128); // 50% Duty Cycle (Max Volume Tone untuk Speaker)
                 } else {
                     pixels.setPixelColor(0, pixels.Color(0, 0, 0));
                     analogWrite(BUZZER_PIN, 0);
                 }
             } else if (is_local_alarm) {
-                
-                // DETEKSI GETARAN LOKAL (Menunggu Konfirmasi Node Lain): Berkedip Pink Pelan
-                if ((millis() / 500) % 2 == 0) pixels.setPixelColor(0, pixels.Color(255, 20, 147)); // Hot Pink
-                else pixels.setPixelColor(0, pixels.Color(0, 0, 0));
+                // DETEKSI GETARAN LOKAL (Menunggu Konfirmasi Node Lain): Berkedip Pink & Low Level Beep
+                if ((millis() / 500) % 2 == 0) {
+                    pixels.setPixelColor(0, pixels.Color(255, 20, 147)); // Hot Pink
+                    analogWrite(BUZZER_PIN, 2); // 1% Duty Cycle (Sangat pelan untuk Speaker)
+                } else {
+                    pixels.setPixelColor(0, pixels.Color(0, 0, 0));
+                    analogWrite(BUZZER_PIN, 0);
+                }
             } else if (!sensorMgr.sensor_ok && !hw611_ok) {
                 
                 // Semua sensor mati: Berkedip Merah Cepat (Bahaya Fatal)
