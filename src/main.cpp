@@ -43,8 +43,14 @@ void networkTaskCode(void* parameter) {
     configTime(0, 0, "pool.ntp.org", "time.nist.gov");
     
     pixels.begin();
+    
+    // ESP32-S3 PWM Timer Allocation untuk Servo
+    ESP32PWM::allocateTimer(0);
+    ESP32PWM::allocateTimer(1);
+    ESP32PWM::allocateTimer(2);
+    ESP32PWM::allocateTimer(3);
     myServo.setPeriodHertz(50);
-    myServo.attach(SERVO_PIN);
+    myServo.attach(SERVO_PIN, 500, 2400); // Lebar pulsa standar Servo SG90
     myServo.write(0);
     float breathAngle = 0;
     
@@ -136,8 +142,14 @@ void setup() {
     
     // Nyalakan LED biru saat sedang setup WiFi
     pixels.begin();
+    
+    // ESP32-S3 PWM Timer Allocation untuk Servo
+    ESP32PWM::allocateTimer(0);
+    ESP32PWM::allocateTimer(1);
+    ESP32PWM::allocateTimer(2);
+    ESP32PWM::allocateTimer(3);
     myServo.setPeriodHertz(50);
-    myServo.attach(SERVO_PIN);
+    myServo.attach(SERVO_PIN, 500, 2400); // Lebar pulsa standar Servo SG90
     myServo.write(0);
     pixels.setPixelColor(0, pixels.Color(0, 0, 40));
     pixels.show();

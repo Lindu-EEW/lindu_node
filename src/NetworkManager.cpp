@@ -101,9 +101,9 @@ void NetworkManager::mqttCallback(char* topic, byte* payload, unsigned int lengt
                 e_lat, e_lon
             );
             
-            bool is_unprovisioned = (instance->_configMgr->config.lat == 0.0 && instance->_configMgr->config.lon == 0.0);
+            bool is_bypass = doc["bypass"] | false;
             
-            if (dist < 50.0 || is_unprovisioned) {
+            if (dist < 50.0 || is_bypass) {
                 Serial.println("[!] SIRINE MENYALA! Epicenter berjarak < 50km (Atau Bypass Test).");
                 global_alarm_until = millis() + 15000;
             } else {
