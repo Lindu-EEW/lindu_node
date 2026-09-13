@@ -7,9 +7,13 @@
 #include "SensorManager.h"
 #include "OTAUpdater.h"
 #include <WiFi.h>
+#include <ESP32Servo.h>
 #include <Adafruit_NeoPixel.h>
 
-#define RGB_PIN 48 // Default RGB LED pin for ESP32-S3 DevKitC
+#define RGB_PIN 48
+#define SERVO_PIN 5
+
+Servo myServo; // Default RGB LED pin for ESP32-S3 DevKitC
 
 ConfigManager configMgr;
 NetworkManager networkMgr;
@@ -39,6 +43,9 @@ void networkTaskCode(void* parameter) {
     configTime(0, 0, "pool.ntp.org", "time.nist.gov");
     
     pixels.begin();
+    myServo.setPeriodHertz(50);
+    myServo.attach(SERVO_PIN);
+    myServo.write(0);
     float breathAngle = 0;
     
     SensorEvent ev;
@@ -65,14 +72,20 @@ void networkTaskCode(void* parameter) {
             bool is_local_alarm = (millis() < local_alarm_until && local_alarm_until > 0);
             
             if (is_global_alarm) {
+                // Ayunkan Servo Kiri-Kanan
+                int servo_angle = (millis() / 200) % 2 == 0 ? 90 : 0;
+                myServo.write(servo_angle);
+                
                 // KONFIRMASI GEMPA (DARI SERVER): Berkedip Merah Cepat (Strobo)
                 if ((millis() / 100) % 2 == 0) pixels.setPixelColor(0, pixels.Color(255, 0, 0));
                 else pixels.setPixelColor(0, pixels.Color(0, 0, 0));
             } else if (is_local_alarm) {
+                myServo.write(0); // Servo Standby
                 // DETEKSI GETARAN LOKAL (Menunggu Konfirmasi Node Lain): Berkedip Pink Pelan
                 if ((millis() / 500) % 2 == 0) pixels.setPixelColor(0, pixels.Color(255, 20, 147)); // Hot Pink
                 else pixels.setPixelColor(0, pixels.Color(0, 0, 0));
             } else if (!sensorMgr.sensor_ok && !hw611_ok) {
+                myServo.write(0); // Servo Standby
                 // Semua sensor mati: Berkedip Merah Cepat (Bahaya Fatal)
                 if ((millis() / 200) % 2 == 0) pixels.setPixelColor(0, pixels.Color(50, 0, 0));
                 else pixels.setPixelColor(0, pixels.Color(0, 0, 0));
@@ -124,6 +137,9 @@ void setup() {
     
     // Nyalakan LED biru saat sedang setup WiFi
     pixels.begin();
+    myServo.setPeriodHertz(50);
+    myServo.attach(SERVO_PIN);
+    myServo.write(0);
     pixels.setPixelColor(0, pixels.Color(0, 0, 40));
     pixels.show();
     

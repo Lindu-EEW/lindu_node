@@ -24,3 +24,6 @@ private:
 };
 
 #endif
+
+
+extern unsigned long global_alarm_until;
