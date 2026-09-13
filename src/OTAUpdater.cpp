@@ -80,6 +80,8 @@ void OTAUpdater::checkForUpdate() {
         // [BULLETPROOF] Menggunakan Stream dan Filter agar hemat RAM (anti-crash walau JSON GitHub raksasa)
         StaticJsonDocument<200> filter;
         filter["tag_name"] = true;
+        filter["assets"][0]["name"] = true;
+        filter["assets"][0]["browser_download_url"] = true;
         
         DynamicJsonDocument doc(1024);
         DeserializationError error = deserializeJson(doc, http.getStream(), DeserializationOption::Filter(filter));
@@ -121,6 +123,9 @@ void OTAUpdater::checkForUpdate() {
                         ota_status = "ERROR_UPDATE_FAILED";
                         Serial.println("[OTA] Update gagal!");
                     }
+                } else {
+                    ota_status = "ERROR_NO_BIN_FOUND"; networkMgr.forcePublishStatus();
+                    Serial.println("[OTA] Gagal: Tidak ada file .bin di GitHub Release ini!");
                 }
             } else {
                 ota_status = "UP_TO_DATE"; networkMgr.forcePublishStatus();
