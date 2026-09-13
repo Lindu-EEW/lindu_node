@@ -22,6 +22,7 @@ Adafruit_NeoPixel pixels(1, RGB_PIN, NEO_GRB + NEO_KHZ800);
 
 QueueHandle_t eventQueue;
 unsigned long global_alarm_until = 0;
+bool is_valve_locked = false;
 float local_latest_pga = 0.0;
 unsigned long local_alarm_until = 0;
 TaskHandle_t networkTaskHandle;
@@ -74,23 +75,29 @@ void networkTaskCode(void* parameter) {
             int brightness = (sin(breathAngle) + 1.0) * 20.0; 
             
             bool hw611_ok = sensorMgr.bme_ok || sensorMgr.bmp_ok;
+            
+            // LOGIKA VALVE MANUAL RESET
+            if (is_valve_locked) {
+                myServo.write(90); // Mengunci (Tutup) sampai direset
+            } else {
+                myServo.write(0);  // Normal (Buka)
+            }
             bool is_global_alarm = (millis() < global_alarm_until && global_alarm_until > 0);
             bool is_local_alarm = (millis() < local_alarm_until && local_alarm_until > 0);
             
             if (is_global_alarm) {
-                // SIMULASI VALVE AIR/GAS (Otomatis Menutup)
-                myServo.write(90); // Putar 90 Derajat (Tutup Katup!)
+                
                 
                 // KONFIRMASI GEMPA (DARI SERVER): Berkedip Merah Cepat (Strobo)
                 if ((millis() / 100) % 2 == 0) pixels.setPixelColor(0, pixels.Color(255, 0, 0));
                 else pixels.setPixelColor(0, pixels.Color(0, 0, 0));
             } else if (is_local_alarm) {
-                myServo.write(0); // Valve Terbuka (Standby)
+                
                 // DETEKSI GETARAN LOKAL (Menunggu Konfirmasi Node Lain): Berkedip Pink Pelan
                 if ((millis() / 500) % 2 == 0) pixels.setPixelColor(0, pixels.Color(255, 20, 147)); // Hot Pink
                 else pixels.setPixelColor(0, pixels.Color(0, 0, 0));
             } else if (!sensorMgr.sensor_ok && !hw611_ok) {
-                myServo.write(0); // Valve Terbuka (Standby)
+                
                 // Semua sensor mati: Berkedip Merah Cepat (Bahaya Fatal)
                 if ((millis() / 200) % 2 == 0) pixels.setPixelColor(0, pixels.Color(50, 0, 0));
                 else pixels.setPixelColor(0, pixels.Color(0, 0, 0));

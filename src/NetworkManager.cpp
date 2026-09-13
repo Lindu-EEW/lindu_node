@@ -104,11 +104,15 @@ void NetworkManager::mqttCallback(char* topic, byte* payload, unsigned int lengt
             bool is_bypass = doc["bypass"] | false;
             
             if (dist < 50.0 || is_bypass) {
-                Serial.println("[!] SIRINE MENYALA! Epicenter berjarak < 50km (Atau Bypass Test).");
+                Serial.println("[!] SIRINE MENYALA! Valve Dikunci Tutup!");
                 global_alarm_until = millis() + 15000;
+                is_valve_locked = true;
             } else {
                 Serial.println("[i] Epicenter terlalu jauh. Abaikan.");
             }
+        } else if (doc["cmd"] == "reset_valve") {
+            Serial.println("[i] Sistem di-Reset Manual. Valve Dibuka.");
+            is_valve_locked = false;
         }
     }
 }
