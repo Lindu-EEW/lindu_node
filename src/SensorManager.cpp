@@ -5,8 +5,6 @@ void SensorManager::begin(QueueHandle_t queue) {
 
   Wire.begin(12, 13);  // Akselerometer
   Wire1.begin(10, 11); // Cuaca
-  Wire.setTimeOut(20); // 20ms timeout untuk mencegah Hang di Core 1
-  Wire1.setTimeOut(20);
 
   _bmp = new Adafruit_BMP280(&Wire1);
 
@@ -27,7 +25,10 @@ bool SensorManager::selfTest() {
 
 void SensorManager::loop() {
   static unsigned long last_cuaca_check = 0;
-  if (!bme_ok && !bmp_ok && millis() - last_cuaca_check > 5000) {
+  static int cuaca_retry_count = 0;
+  
+  if (!bme_ok && !bmp_ok && cuaca_retry_count < 3 && millis() - last_cuaca_check > 5000) {
+    cuaca_retry_count++;
     bme_ok = _bme.begin(0x76, &Wire1) || _bme.begin(0x77, &Wire1);
     if (!bme_ok)
       bmp_ok = _bmp->begin(0x76) || _bmp->begin(0x77);
