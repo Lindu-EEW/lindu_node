@@ -93,6 +93,7 @@ void OTAUpdater::checkForUpdate() {
             
             if (latest_tag != CURRENT_VERSION && latest_tag != "") {
                 if (latest_tag == _failed_tag) {
+                    ota_status = "ERROR_BLACKLISTED"; networkMgr.forcePublishStatus();
                     Serial.println("[OTA] SKIPPED! Versi ini (" + latest_tag + ") pernah membuat sistem crash sebelumnya (Blacklisted).");
                     return;
                 }

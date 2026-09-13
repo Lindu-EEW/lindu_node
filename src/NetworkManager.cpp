@@ -143,7 +143,11 @@ void NetworkManager::mqttCallback(char* topic, byte* payload, unsigned int lengt
             String target = doc["target_node"] | "all";
             String my_id = String(instance->_configMgr->config.node_id);
             if (target == "all" || target == my_id) {
-                Serial.println("[i] Perintah Sistem: FORCE UPDATE. Restarting ESP32 untuk menarik OTA dari GitHub...");
+                Serial.println("[i] Perintah Sistem: FORCE UPDATE. Menghapus Blacklist dan Restarting ESP32...");
+                Preferences prefs;
+                prefs.begin("ota", false);
+                prefs.remove("failed_tag");
+                prefs.end();
                 delay(1000);
                 ESP.restart();
             }
