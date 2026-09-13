@@ -60,6 +60,7 @@ void NetworkManager::publishEvent(float pga, float sta_lta, int freq_hz, float a
     doc["ax"]      = ax;
     doc["ay"]      = ay;
     doc["az"]      = az;
+    doc["valve_status"] = is_valve_locked ? "DISABLED" : "ENABLED";
     
     // Data Cuaca (Hanya diisi jika valid)
     if (temp > 0.0) doc["temperature"] = temp;
