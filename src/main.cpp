@@ -96,7 +96,7 @@ void networkTaskCode(void* parameter) {
         // Cek apakah ada data sensor di antrean (Non-Blocking)
         if (xQueueReceive(eventQueue, &ev, 0) == pdTRUE) {
             local_latest_pga = ev.pga;
-            if (ev.pga > 0.05) local_alarm_until = millis() + 5000; // Tahan warna pink selama 5 detik
+            if (ev.pga > 0.12) local_alarm_until = millis() + 5000; // Tahan warna pink selama 5 detik
             networkMgr.publishEvent(
                 ev.pga, ev.ratio, ev.freq_hz,
                 ev.accel_x, ev.accel_y, ev.accel_z,
