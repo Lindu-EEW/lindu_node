@@ -10,8 +10,8 @@
 #include "esp_ota_ops.h"
 #include "esp_system.h"
 
-#define CURRENT_VERSION "v1.1.15"
-#define REPO_OWNER "eatrisno"
+#define CURRENT_VERSION "v1.1.16"
+#define REPO_OWNER "Lindu-EEW"
 #define REPO_NAME "lindu_node"
 
 class OTAUpdater {
