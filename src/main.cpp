@@ -8,7 +8,14 @@
 #include "OTAUpdater.h"
 #include <WiFi.h>
 #include <ESP32Servo.h>
+
 #include <Adafruit_NeoPixel.h>
+
+// --- RESCUE MODE (SAFE MODE) VARIABLES ---
+// RTC memory bertahan saat ESP32 crash atau reboot
+RTC_DATA_ATTR int boot_crash_count = 0;
+bool is_rescue_mode = false;
+
 
 #define RGB_PIN 48
 #define SERVO_PIN 5
