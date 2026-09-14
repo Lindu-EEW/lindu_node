@@ -1,3 +1,4 @@
+#include <Preferences.h>
 #include "OTAUpdater.h"
 #include "NetworkManager.h"
 
