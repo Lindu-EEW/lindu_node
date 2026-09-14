@@ -10,7 +10,7 @@
 #include "esp_ota_ops.h"
 #include "esp_system.h"
 
-#define CURRENT_VERSION "v1.1.11"
+#define CURRENT_VERSION "v1.1.12"
 #define REPO_OWNER "eatrisno"
 #define REPO_NAME "lindu_node"
 

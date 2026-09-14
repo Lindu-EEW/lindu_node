@@ -113,7 +113,7 @@ void networkTaskCode(void* parameter) {
                     analogWrite(BUZZER_PIN, 128); // 50% Duty Cycle (Max Volume Tone untuk Speaker)
                 } else {
                     pixels.setPixelColor(0, pixels.Color(0, 0, 0));
-                    pinMode(BUZZER_PIN, OUTPUT); digitalWrite(BUZZER_PIN, HIGH); // ACTIVE LOW: HIGH artinya MATI
+                    analogWrite(BUZZER_PIN, 255); // ACTIVE LOW: 100% Duty Cycle (HIGH) artinya MATI
                 }
             } else if (is_local_alarm) {
                 // DETEKSI GETARAN LOKAL (Menunggu Konfirmasi Node Lain): HANYA Berkedip Pink
