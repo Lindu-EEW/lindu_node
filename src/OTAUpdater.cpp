@@ -73,6 +73,7 @@ void OTAUpdater::checkForUpdate() {
     HTTPClient http;
     
     String url = String("https://api.github.com/repos/") + REPO_OWNER + "/" + REPO_NAME + "/releases/latest";
+    http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS); // Wajib agar bisa mengikuti redirect jika Repo pindah organisasi
     http.begin(client, url);
     int httpCode = http.GET();
     
