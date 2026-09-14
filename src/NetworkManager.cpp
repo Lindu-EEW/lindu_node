@@ -139,6 +139,19 @@ void NetworkManager::mqttCallback(char* topic, byte* payload, unsigned int lengt
                 identify_until = millis() + 10000; // 10 detik
                 Serial.println("[i] Perintah Sistem: IDENTIFY. Lampu berkedip putih.");
             }
+        } else if (doc["cmd"] == "factory_reset") {
+            String target = doc["target_node"] | "all";
+            String my_id = String(instance->_configMgr->config.node_id);
+            if (target == "all" || target == my_id) {
+                Serial.println("[!] Perintah Sistem: FACTORY RESET. Menghapus semua memori dan Restart...");
+                instance->_configMgr->resetConfig(); // Hapus WiFi & Koordinat
+                Preferences prefs;
+                prefs.begin("ota", false);
+                prefs.clear(); // Hapus blacklist OTA
+                prefs.end();
+                delay(1000);
+                ESP.restart();
+            }
         } else if (doc["cmd"] == "force_update" || doc["cmd"] == "reboot") {
             String target = doc["target_node"] | "all";
             String my_id = String(instance->_configMgr->config.node_id);
