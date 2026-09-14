@@ -139,6 +139,18 @@ void NetworkManager::mqttCallback(char* topic, byte* payload, unsigned int lengt
                 identify_until = millis() + 10000; // 10 detik
                 Serial.println("[i] Perintah Sistem: IDENTIFY. Lampu berkedip putih.");
             }
+        } else if (doc["cmd"] == "set_location") {
+            String target = doc["target_node"] | "all";
+            String my_id = String(instance->_configMgr->config.node_id);
+            if (target == "all" || target == my_id) {
+                if (doc.containsKey("lat") && doc.containsKey("lon")) {
+                    instance->_configMgr->config.lat = doc["lat"];
+                    instance->_configMgr->config.lon = doc["lon"];
+                    instance->_configMgr->saveConfig();
+                    Serial.println("[i] Perintah Sistem: SET LOCATION. Koordinat diperbarui!");
+                    instance->forcePublishStatus(); // Segera kirim update ke dashboard
+                }
+            }
         } else if (doc["cmd"] == "factory_reset") {
             String target = doc["target_node"] | "all";
             String my_id = String(instance->_configMgr->config.node_id);
