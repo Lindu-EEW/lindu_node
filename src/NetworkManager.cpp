@@ -170,7 +170,7 @@ void NetworkManager::mqttCallback(char* topic, byte* payload, unsigned int lengt
             String my_id = String(instance->_configMgr->config.node_id);
             if (target == "all" || target == my_id) {
                 if (doc.containsKey("server")) {
-                    strlcpy(instance->_configMgr->config.mqtt_server, doc["server"].as<const char*>(), 64);
+                    strlcpy(instance->_configMgr->config.mqtt_server, (const char*)doc["server"], 64);
                     instance->_configMgr->saveConfig();
                     Serial.println("[i] Perintah Sistem: SET BROKER. Restarting ESP32...");
                     delay(1000);
