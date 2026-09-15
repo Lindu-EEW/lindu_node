@@ -221,6 +221,21 @@ void networkTaskCode(void* parameter) {
             if (ev.pga > 0.12) {
                 local_alarm_until = millis() + 5000; // Tahan warna pink selama 5 detik
                 
+                // ========== OFFLINE FAIL-SAFE (LONE WOLF MODE) ==========
+                // Jika MQTT server mati DAN getaran AMAT SANGAT BRUTAL (PGA > 0.60G),
+                // ESP32 mengambil alih kekuasaan mutlak: langsung membunyikan sirine,
+                // mengunci katup gas, dan membuka pintu untuk evakuasi.
+                // Ini adalah garis pertahanan terakhir saat infrastruktur internet runtuh.
+                if (!networkMgr.isConnected() && ev.pga > 0.60) {
+                    Serial.println("[!!!] LONE WOLF MODE: Server offline + PGA EKSTREM! Mengambil alih kendali!");
+                    global_alarm_until = millis() + 15000; // Sirine merah 15 detik
+                    is_valve_locked = true;
+                    actPrefs.putBool("valve_locked", true);
+#if !ARDUINO_USB_CDC_ON_BOOT
+                    is_door_locked = false; // Buka pintu untuk evakuasi (Classic only)
+#endif
+                }
+                
                 // TICK Dinamis: Volume/Intensitas diwakili oleh durasi (Haptic Feedback)
                 static unsigned long last_tick_time = 0;
                 if (!is_global_alarm && (millis() - last_tick_time > 500)) { 
