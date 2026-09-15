@@ -6,6 +6,7 @@
 // Struktur memori yang akan disimpan secara permanen di Flash NVS
 struct LinduConfig {
     char mqtt_server[64];
+    char ota_repo[64];
     char node_id[32];
     float lat;
     float lon;

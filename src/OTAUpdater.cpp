@@ -1,4 +1,6 @@
 #include "OTAUpdater.h"
+#include "ConfigManager.h"
+extern ConfigManager configMgr;
 #include "NetworkManager.h"
 extern NetworkManager networkMgr;
 #include <Adafruit_NeoPixel.h>
@@ -72,7 +74,7 @@ void OTAUpdater::checkForUpdate() {
     client.setInsecure();
     HTTPClient http;
     
-    String url = String("https://api.github.com/repos/") + REPO_OWNER + "/" + REPO_NAME + "/releases/latest";
+    String url = String("https://api.github.com/repos/") + configMgr.config.ota_repo + "/releases/latest";
     http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS); // Wajib agar bisa mengikuti redirect jika Repo pindah organisasi
     http.begin(client, url);
     int httpCode = http.GET();
