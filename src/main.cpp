@@ -10,6 +10,7 @@
 #include "OTAUpdater.h"
 #include <WiFi.h>
 #include "esp_ota_ops.h"
+#include <Preferences.h>
 
 #include <Adafruit_NeoPixel.h>
 
@@ -281,6 +282,12 @@ void setup() {
         if (ota_state == ESP_OTA_IMG_PENDING_VERIFY) {
             Serial.println("[OTA] Firmware baru terdeteksi! Menandai sebagai VALID...");
             esp_ota_mark_app_valid_cancel_rollback();
+            
+            // Hapus blacklist karena berhasil boot
+            Preferences tempPrefs;
+            tempPrefs.begin("ota", false);
+            tempPrefs.remove("failed_tag");
+            tempPrefs.end();
         }
     }
 

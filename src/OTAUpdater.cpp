@@ -190,8 +190,9 @@ bool OTAUpdater::performUpdate(const char* url, const char* tag) {
             if (Update.isFinished()) {
                 Serial.println("[OTA] Update berhasil divalidasi!");
                 
-                // Konfigurasi Rollback
-                esp_ota_set_boot_partition(esp_ota_get_next_update_partition(NULL));
+                // Update.end() otomatis mengubah boot partition ke firmware baru.
+                // JANGAN panggil esp_ota_set_boot_partition() lagi di sini 
+                // karena justru akan memutar boot partition kembali ke versi LAMA!
                 return true;
             }
         }
