@@ -245,6 +245,7 @@ void networkTaskCode(void* parameter) {
                 // Ini adalah garis pertahanan terakhir saat infrastruktur internet runtuh.
                 if (!networkMgr.isConnected() && ev.pga > 0.60) {
                     Serial.println("[!!!] LONE WOLF MODE: Server offline + PGA EKSTREM! Mengambil alih kendali!");
+                    networkMgr.publishLog("LONE WOLF MODE DIINTIASI! Server Offline & PGA Ekstrem.");
                     global_alarm_until = millis() + 15000; // Sirine merah 15 detik
                     is_valve_locked = true;
                     actPrefs.putBool("valve_locked", true);
@@ -353,6 +354,7 @@ void setup() {
         if (WiFi.status() == WL_CONNECTED) {
             wifi_ok = true;
             Serial.println("[OK] WiFi Terhubung via kredensial tersimpan!");
+            networkMgr.publishLog("WiFi Terhubung (Kredensial Tersimpan).");
             break;
         }
         Serial.printf("[!] Gagal percobaan %d. Menunggu 3 detik...\n", attempt);
@@ -362,6 +364,7 @@ void setup() {
     // Jika 3x retry gagal, baru buka Captive Portal sebagai fallback
     if (!wifi_ok) {
         Serial.println("[i] Retry habis. Membuka Captive Portal...");
+        networkMgr.publishLog("Gagal WiFi 3x, Membuka Captive Portal.");
         if (!configMgr.startCaptivePortal()) {
             Serial.println("[!] Gagal connect WiFi. Alat akan restart...");
             delay(3000);
