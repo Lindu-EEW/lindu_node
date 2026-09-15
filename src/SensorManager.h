@@ -21,19 +21,28 @@ struct SensorEvent {
     float pressure;
 };
 
+#define GAS_LEAK_THRESHOLD 1800
+#define GAS_WARMUP_MS 30000 // MQ-2 butuh waktu pemanasan sebelum pembacaan stabil
+
 class SensorManager {
 public:
     void begin(QueueHandle_t queue);
     void loop();
-    
+
     bool selfTest();
     bool sensor_ok = false;
     bool bmp_ok = false;
     bool bme_ok = false;
+    bool gas_leak_detected = false;
+    bool gas_warming_up = true;
+    int  gas_raw_value = 0;
     String getPose();
-    float getTiltAngle(); 
+    float getTiltAngle();
 
 private:
+    void readGasSensor();
+    unsigned long _last_gas_read = 0;
+    unsigned long _gas_boot_time = 0;
     Adafruit_LSM6DS3 _lsm6ds3;
     Adafruit_BME280 _bme;
     Adafruit_BMP280* _bmp;

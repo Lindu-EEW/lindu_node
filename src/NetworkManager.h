@@ -29,3 +29,6 @@ private:
 
 extern unsigned long global_alarm_until;
 extern bool is_valve_locked;
+#if !ARDUINO_USB_CDC_ON_BOOT
+extern bool is_door_locked; // Khusus unit ESP32 classic (esp32_wroom)
+#endif

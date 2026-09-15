@@ -73,6 +73,12 @@ void NetworkManager::publishEvent(float pga, float sta_lta, int freq_hz, float a
     doc["ay"]      = ay;
     doc["az"]      = az;
     doc["valve_status"] = is_valve_locked ? "DISABLED" : "ENABLED";
+#if !ARDUINO_USB_CDC_ON_BOOT
+    // Field baru khusus unit ESP32 classic (door lock + gas sensor); TIDAK
+    // ditambahkan pada payload S3 agar format telemetry S3 tetap identik dengan main.
+    doc["door_status"] = is_door_locked ? "LOCKED" : "UNLOCKED";
+    doc["gas_alert"] = sensorMgr.gas_leak_detected;
+#endif
     doc["temperature"] = temp;
     doc["pressure"] = pres;
     
@@ -120,10 +126,17 @@ void NetworkManager::mqttCallback(char* topic, byte* payload, unsigned int lengt
             bool is_bypass = doc["bypass"] | false;
             
             if (dist < 50.0 || is_bypass) {
+#if !ARDUINO_USB_CDC_ON_BOOT
+                Serial.println("[!] SIRINE MENYALA! Valve Dikunci Tutup, Pintu Dibuka untuk Evakuasi!");
+#else
                 Serial.println("[!] SIRINE MENYALA! Valve Dikunci Tutup!");
+#endif
                 global_alarm_until = millis() + 15000;
                 is_valve_locked = true;
                 actPrefs.putBool("valve_locked", true);
+#if !ARDUINO_USB_CDC_ON_BOOT
+                is_door_locked = false; // Fitur door lock khusus unit ESP32 classic
+#endif
             } else {
                 Serial.println("[i] Epicenter terlalu jauh. Abaikan.");
             }
@@ -147,6 +160,27 @@ void NetworkManager::mqttCallback(char* topic, byte* payload, unsigned int lengt
             } else {
                 Serial.println("[i] Perintah Disable diabaikan (Bukan untuk Node ini).");
             }
+#if !ARDUINO_USB_CDC_ON_BOOT
+        // Command door lock: khusus unit ESP32 classic (esp32_wroom)
+        } else if (doc["cmd"] == "lock_door") {
+            String target = doc["target_node"] | "all";
+            String my_id = String(instance->_configMgr->config.node_id);
+            if (target == "all" || target == my_id) {
+                Serial.println("[i] Perintah Sistem: Pintu di-LOCK.");
+                is_door_locked = true;
+            } else {
+                Serial.println("[i] Perintah Lock Door diabaikan (Bukan untuk Node ini).");
+            }
+        } else if (doc["cmd"] == "unlock_door") {
+            String target = doc["target_node"] | "all";
+            String my_id = String(instance->_configMgr->config.node_id);
+            if (target == "all" || target == my_id) {
+                Serial.println("[i] Perintah Sistem: Pintu di-UNLOCK.");
+                is_door_locked = false;
+            } else {
+                Serial.println("[i] Perintah Unlock Door diabaikan (Bukan untuk Node ini).");
+            }
+#endif
         } else if (doc["cmd"] == "identify") {
             String target = doc["target_node"] | "all";
             String my_id = String(instance->_configMgr->config.node_id);

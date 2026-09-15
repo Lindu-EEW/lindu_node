@@ -1,5 +1,7 @@
 #include "SensorManager.h"
 
+extern bool is_valve_locked;
+
 bool probeI2C(uint8_t address) {
   Wire1.setTimeOut(50); // Set timeout hanya untuk I2C Cuaca
   Wire1.beginTransmission(address);
@@ -20,6 +22,12 @@ bool probeI2C(uint8_t address) {
 
 void SensorManager::begin(QueueHandle_t queue) {
   _eventQueue = queue;
+
+#if !ARDUINO_USB_CDC_ON_BOOT
+  // Sensor gas MQ-2 hanya ada di unit ESP32 classic (esp32_wroom)
+  pinMode(PIN_GAS_MQ2, INPUT);
+  _gas_boot_time = millis();
+#endif
 
   Wire.begin(PIN_I2C_SEIS_SDA, PIN_I2C_SEIS_SCL);  // Akselerometer
   Wire1.begin(PIN_I2C_ATMO_SDA, PIN_I2C_ATMO_SCL); // Cuaca
@@ -48,10 +56,41 @@ bool SensorManager::selfTest() {
   return _lsm6ds3.begin_I2C(0x6A, &Wire) || _lsm6ds3.begin_I2C(0x6B, &Wire);
 }
 
+#if !ARDUINO_USB_CDC_ON_BOOT
+// Sensor gas MQ-2: fitur ini HANYA untuk unit ESP32 classic (esp32_wroom).
+// Dibungkus preprocessor supaya sama sekali tidak ter-compile/tereksekusi
+// pada build ESP32-S3 (mencegah GPIO S3 yang belum terpakai membaca noise
+// dan secara tidak sengaja memicu is_valve_locked=true).
+void SensorManager::readGasSensor() {
+  if (millis() - _last_gas_read < 500) return;
+  _last_gas_read = millis();
+
+  gas_raw_value = analogRead(PIN_GAS_MQ2);
+
+  gas_warming_up = (millis() - _gas_boot_time) < GAS_WARMUP_MS;
+  if (gas_warming_up) {
+    // Sensor belum stabil (heater MQ-2 belum panas) -> abaikan hasil baca sementara
+    gas_leak_detected = false;
+    return;
+  }
+
+  gas_leak_detected = gas_raw_value > GAS_LEAK_THRESHOLD;
+
+  // FAIL-SAFE: Kebocoran gas terdeteksi -> paksa tutup valve, abaikan status manual
+  if (gas_leak_detected) {
+    is_valve_locked = true;
+  }
+}
+#endif
+
 void SensorManager::loop() {
+#if !ARDUINO_USB_CDC_ON_BOOT
+  readGasSensor();
+#endif
+
   static unsigned long last_cuaca_check = 0;
   static int cuaca_retry_count = 0;
-  
+
   if (!bme_ok && !bmp_ok && cuaca_retry_count < 3 && millis() - last_cuaca_check > 5000) {
     cuaca_retry_count++;
     if (probeI2C(0x76) || probeI2C(0x77)) {
