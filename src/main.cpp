@@ -9,6 +9,7 @@
 #include "SensorManager.h"
 #include "OTAUpdater.h"
 #include <WiFi.h>
+#include "esp_ota_ops.h"
 
 #include <Adafruit_NeoPixel.h>
 
@@ -273,6 +274,16 @@ void setup() {
     Serial.println(" Lindu.id - Life-Critical Node v2.0 ");
     Serial.println("==========================================");
 
+    // 0. SEGERA tandai firmware sebagai VALID agar tidak di-rollback
+    // Ini HARUS dilakukan sebelum WiFi agar OTA tidak loop
+    esp_ota_img_states_t ota_state;
+    if (esp_ota_get_state_partition(esp_ota_get_running_partition(), &ota_state) == ESP_OK) {
+        if (ota_state == ESP_OTA_IMG_PENDING_VERIFY) {
+            Serial.println("[OTA] Firmware baru terdeteksi! Menandai sebagai VALID...");
+            esp_ota_mark_app_valid_cancel_rollback();
+        }
+    }
+
     // 1. Muat Konfigurasi (EEPROM) & WiFi Captive Portal
     configMgr.begin();
     
@@ -306,7 +317,7 @@ void setup() {
     bool wifi_ok = false;
     for (int attempt = 1; attempt <= 3; attempt++) {
         Serial.printf("[WiFi] Percobaan %d/3...\n", attempt);
-        WiFi.begin(); // Gunakan kredensial tersimpan
+        WiFi.begin(); // Menggunakan memori NVS bawaan ESP32 // Gunakan kredensial dari EEPROM
         
         unsigned long start = millis();
         while (WiFi.status() != WL_CONNECTED && millis() - start < 10000) {
