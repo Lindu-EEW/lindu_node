@@ -23,8 +23,11 @@ bool probeI2C(uint8_t address) {
 void SensorManager::begin(QueueHandle_t queue) {
   _eventQueue = queue;
 
+#if !ARDUINO_USB_CDC_ON_BOOT
+  // Sensor gas MQ-2 hanya ada di unit ESP32 classic (esp32_wroom)
   pinMode(PIN_GAS_MQ2, INPUT);
   _gas_boot_time = millis();
+#endif
 
   Wire.begin(PIN_I2C_SEIS_SDA, PIN_I2C_SEIS_SCL);  // Akselerometer
   Wire1.begin(PIN_I2C_ATMO_SDA, PIN_I2C_ATMO_SCL); // Cuaca
@@ -53,6 +56,11 @@ bool SensorManager::selfTest() {
   return _lsm6ds3.begin_I2C(0x6A, &Wire) || _lsm6ds3.begin_I2C(0x6B, &Wire);
 }
 
+#if !ARDUINO_USB_CDC_ON_BOOT
+// Sensor gas MQ-2: fitur ini HANYA untuk unit ESP32 classic (esp32_wroom).
+// Dibungkus preprocessor supaya sama sekali tidak ter-compile/tereksekusi
+// pada build ESP32-S3 (mencegah GPIO S3 yang belum terpakai membaca noise
+// dan secara tidak sengaja memicu is_valve_locked=true).
 void SensorManager::readGasSensor() {
   if (millis() - _last_gas_read < 500) return;
   _last_gas_read = millis();
@@ -73,9 +81,12 @@ void SensorManager::readGasSensor() {
     is_valve_locked = true;
   }
 }
+#endif
 
 void SensorManager::loop() {
+#if !ARDUINO_USB_CDC_ON_BOOT
   readGasSensor();
+#endif
 
   static unsigned long last_cuaca_check = 0;
   static int cuaca_retry_count = 0;
