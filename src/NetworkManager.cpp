@@ -1,6 +1,8 @@
 #include <Preferences.h>
 #include "OTAUpdater.h"
 #include "NetworkManager.h"
+#include <Preferences.h>
+extern Preferences actPrefs;
 
 extern unsigned long global_alarm_until;
 #include "SensorManager.h"
@@ -50,7 +52,7 @@ void NetworkManager::reconnectMQTT() {
     }
 }
 
-void NetworkManager::publishEvent(float pga, float sta_lta, int freq_hz, float ax, float ay, float az, unsigned long uptime_ms, unsigned long epoch, float lat, float lon, float temp, float pres) {
+void NetworkManager::publishEvent(float pga, float sta_lta, int freq_hz, float ax, float ay, float az, unsigned long uptime_ms, double epoch, float lat, float lon, float temp, float pres) {
     if (!mqtt.connected()) return;
     
     StaticJsonDocument<512> doc;
@@ -114,6 +116,7 @@ void NetworkManager::mqttCallback(char* topic, byte* payload, unsigned int lengt
                 Serial.println("[!] SIRINE MENYALA! Valve Dikunci Tutup!");
                 global_alarm_until = millis() + 15000;
                 is_valve_locked = true;
+                actPrefs.putBool("valve_locked", true);
             } else {
                 Serial.println("[i] Epicenter terlalu jauh. Abaikan.");
             }
@@ -123,6 +126,7 @@ void NetworkManager::mqttCallback(char* topic, byte* payload, unsigned int lengt
             if (target == "all" || target == my_id) {
                 Serial.println("[i] Perintah Sistem: Valve di-ENABLE (Aliran Dibuka).");
                 is_valve_locked = false;
+                actPrefs.putBool("valve_locked", false);
             } else {
                 Serial.println("[i] Perintah Enable diabaikan (Bukan untuk Node ini).");
             }
@@ -132,6 +136,7 @@ void NetworkManager::mqttCallback(char* topic, byte* payload, unsigned int lengt
             if (target == "all" || target == my_id) {
                 Serial.println("[i] Perintah Sistem: Valve di-DISABLE (Aliran Ditutup).");
                 is_valve_locked = true;
+                actPrefs.putBool("valve_locked", true);
             } else {
                 Serial.println("[i] Perintah Disable diabaikan (Bukan untuk Node ini).");
             }

@@ -10,7 +10,7 @@
 #include "esp_ota_ops.h"
 #include "esp_system.h"
 
-#define CURRENT_VERSION "v1.1.31"
+#define CURRENT_VERSION "v1.1.32"
 
 class OTAUpdater {
 public:

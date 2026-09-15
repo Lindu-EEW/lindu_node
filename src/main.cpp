@@ -32,18 +32,17 @@ Adafruit_NeoPixel pixels(1, RGB_PIN, NEO_GRB + NEO_KHZ800);
 QueueHandle_t eventQueue;
 unsigned long global_alarm_until = 0;
 bool is_valve_locked = false;
+Preferences actPrefs;
 float local_latest_pga = 0.0;
 unsigned long local_alarm_until = 0;
 unsigned long identify_until = 0;
 TaskHandle_t networkTaskHandle;
 
 // Helper: Ambil Waktu Epoch NTP
-unsigned long getEpochTime() {
-    time_t now;
-    struct tm timeinfo;
-    if (!getLocalTime(&timeinfo)) return 0;
-    time(&now);
-    return now;
+double getEpochTime() {
+    struct timeval tv;
+    if (gettimeofday(&tv, NULL) != 0) return 0.0;
+    return (double)tv.tv_sec + (double)tv.tv_usec / 1000000.0;
 }
 
 // TASK CORE 0: Mengurus Wi-Fi, MQTT, JSON, Edge Computing, dan Animasi LED
