@@ -94,7 +94,7 @@ void NetworkManager::mqttCallback(char* topic, byte* payload, unsigned int lengt
     for (int i = 0; i < length; i++) msg += (char)payload[i];
     
     if (String(topic) == "lindu/actuator/cmd/all") {
-        StaticJsonDocument<256> doc;
+        StaticJsonDocument<1024> doc;
         DeserializationError error = deserializeJson(doc, msg);
         if (error) return;
         
