@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <sys/time.h>
 #include <esp_attr.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
