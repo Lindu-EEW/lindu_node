@@ -103,7 +103,7 @@ void OTAUpdater::checkForUpdate() {
                 JsonArray assets = doc["assets"];
                 for (JsonVariant asset : assets) {
                     String name = asset["name"].as<String>();
-                    if (name.endsWith(".bin")) {
+                    if (name.endsWith(".bin") && name.indexOf(BOARD_VARIANT) >= 0) {
                         bin_url = asset["browser_download_url"].as<String>();
                         break;
                     }
