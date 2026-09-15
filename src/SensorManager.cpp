@@ -22,7 +22,7 @@ void SensorManager::begin(QueueHandle_t queue) {
   _eventQueue = queue;
 
   Wire.begin(12, 13);  // Akselerometer
-  Wire1.begin(10, 11); // Cuaca
+  Wire1.begin(15, 16); // Cuaca
 
   _bmp = new Adafruit_BMP280(&Wire1);
 
