@@ -11,7 +11,7 @@
 #include "esp_system.h"
 
 #ifndef CURRENT_VERSION
-#define CURRENT_VERSION "v1.1.36"
+#define CURRENT_VERSION "v1.2.0"
 #endif
 
 class OTAUpdater {
