@@ -299,11 +299,41 @@ void setup() {
     pixels.setPixelColor(0, pixels.Color(0, 0, 40));
     pixels.show();
     
-    Serial.println("[i] Memulai koneksi WiFi / Captive Portal...");
-    if (!configMgr.startCaptivePortal()) {
-        Serial.println("[!] Gagal connect WiFi. Alat akan restart...");
+    Serial.println("[i] Memulai koneksi WiFi...");
+    
+    // RETRY LOGIC: Coba koneksi WiFi 3x sebelum masuk Captive Portal
+    // Ini mengatasi masalah pasca-OTA reboot dimana router belum siap
+    bool wifi_ok = false;
+    for (int attempt = 1; attempt <= 3; attempt++) {
+        Serial.printf("[WiFi] Percobaan %d/3...\n", attempt);
+        WiFi.begin(); // Gunakan kredensial tersimpan
+        
+        unsigned long start = millis();
+        while (WiFi.status() != WL_CONNECTED && millis() - start < 10000) {
+            delay(500);
+            Serial.print(".");
+            pixels.setPixelColor(0, (millis() / 300) % 2 ? pixels.Color(0, 0, 40) : pixels.Color(0, 0, 0));
+            pixels.show();
+        }
+        Serial.println();
+        
+        if (WiFi.status() == WL_CONNECTED) {
+            wifi_ok = true;
+            Serial.println("[OK] WiFi Terhubung via kredensial tersimpan!");
+            break;
+        }
+        Serial.printf("[!] Gagal percobaan %d. Menunggu 3 detik...\n", attempt);
         delay(3000);
-        ESP.restart();
+    }
+    
+    // Jika 3x retry gagal, baru buka Captive Portal sebagai fallback
+    if (!wifi_ok) {
+        Serial.println("[i] Retry habis. Membuka Captive Portal...");
+        if (!configMgr.startCaptivePortal()) {
+            Serial.println("[!] Gagal connect WiFi. Alat akan restart...");
+            delay(3000);
+            ESP.restart();
+        }
     }
     Serial.println("[OK] WiFi Terhubung.");
 

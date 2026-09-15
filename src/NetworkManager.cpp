@@ -28,6 +28,18 @@ void NetworkManager::begin(ConfigManager* configMgr) {
 }
 
 void NetworkManager::loop() {
+    // AUTO-RECONNECT WiFi jika terputus saat runtime
+    if (WiFi.status() != WL_CONNECTED) {
+        static unsigned long last_wifi_retry = 0;
+        if (millis() - last_wifi_retry > 10000) { // Retry setiap 10 detik
+            last_wifi_retry = millis();
+            Serial.println("[WiFi] Koneksi terputus! Mencoba reconnect...");
+            WiFi.disconnect();
+            WiFi.begin(); // Gunakan kredensial tersimpan
+        }
+        return; // Jangan coba MQTT jika WiFi belum konek
+    }
+    
     if (!mqtt.connected()) {
         reconnectMQTT();
     }
