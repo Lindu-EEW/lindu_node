@@ -21,8 +21,8 @@ bool probeI2C(uint8_t address) {
 void SensorManager::begin(QueueHandle_t queue) {
   _eventQueue = queue;
 
-  Wire.begin(12, 13);  // Akselerometer
-  Wire1.begin(15, 16); // Cuaca
+  Wire.begin(PIN_I2C_SEIS_SDA, PIN_I2C_SEIS_SCL);  // Akselerometer
+  Wire1.begin(PIN_I2C_ATMO_SDA, PIN_I2C_ATMO_SCL); // Cuaca
 
   _bmp = new Adafruit_BMP280(&Wire1);
 

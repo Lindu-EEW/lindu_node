@@ -36,15 +36,16 @@ jobs:
 
       - name: Compile ESP32 Firmware
         run: |
-          pio run -e esp32s3
+          pio run
 
       - name: Rename Firmware Binary
         run: |
           mv .pio/build/esp32s3/firmware.bin firmware_esp32s3.bin
+          mv .pio/build/esp32_wroom/firmware.bin firmware_esp32_wroom.bin
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
-          files: firmware_esp32s3.bin
+          files: firmware_*.bin
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
