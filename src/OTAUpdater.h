@@ -10,12 +10,13 @@
 #include "esp_ota_ops.h"
 #include "esp_system.h"
 
-#define CURRENT_VERSION "v1.1.34"
+#define CURRENT_VERSION "v1.1.35"
 
 class OTAUpdater {
 public:
     void begin();
     void loop();
+    void checkForUpdate();
     void confirmWorking();
     String ota_status = "IDLE";
 
@@ -24,7 +25,6 @@ private:
     Preferences _prefs;
     String _failed_tag;
 
-    void checkForUpdate();
     bool performUpdate(const char* url, const char* tag);
 };
 
