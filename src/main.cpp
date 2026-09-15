@@ -125,16 +125,23 @@ void networkTaskCode(void* parameter) {
             // LOGIKA VALVE MANUAL RESET (Hanya nyalakan motor saat diperintah sistem)
             static bool last_valve_state = false;
             if (is_valve_locked != last_valve_state) {
-                myServo.attach(SERVO_PIN, 500, 2400); // Sistem meng-enable motor
+                // PRE-WRITE: Set target sudut SEBELUM motor dialiri listrik agar tidak melompat kaget
+                int target_angle = is_valve_locked ? 90 : 0;
+                myServo.write(target_angle); 
+                
+                // Beri jeda sangat kecil sebelum attach untuk stabilitas sinyal PWM FreeRTOS
+                vTaskDelay(pdMS_TO_TICKS(50));
+                
+                // Nyalakan tenaga motor
+                myServo.attach(SERVO_PIN, 500, 2400); 
+                myServo.write(target_angle); // Tulis ulang untuk memastikan sinyal PWM terkirim
 
-                if (is_valve_locked) {
-                    myServo.write(90); // Sistem menggerakkan katup ke posisi Tutup (90)
-                } else {
-                    myServo.write(0);  // Sistem mereset katup ke posisi Buka (0)
-                }
-
-                vTaskDelay(pdMS_TO_TICKS(1000)); // Beri waktu 1 detik agar motor selesai berputar fisik
-                myServo.detach(); // Sistem mematikan/melepas motor kembali (Hemat baterai & tidak memaksa)
+                // Beri waktu 2.5 detik (cukup panjang) agar motor yang membawa beban fisik berat
+                // punya cukup waktu untuk sampai ke tujuan sebelum listriknya dicabut
+                vTaskDelay(pdMS_TO_TICKS(2500)); 
+                
+                // Matikan aliran listrik (Zero-Torque Standby)
+                myServo.detach();
 
                 last_valve_state = is_valve_locked;
             }
