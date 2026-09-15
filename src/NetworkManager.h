@@ -29,3 +29,4 @@ private:
 
 extern unsigned long global_alarm_until;
 extern bool is_valve_locked;
+extern bool is_door_locked;

@@ -8,7 +8,6 @@
 #include "SensorManager.h"
 #include "OTAUpdater.h"
 #include <WiFi.h>
-#include <ESP32Servo.h>
 
 #include <Adafruit_NeoPixel.h>
 
@@ -17,12 +16,26 @@
 RTC_DATA_ATTR int boot_crash_count = 0;
 bool is_rescue_mode = false;
 
+// Pin RGB/Buzzer/Relay berbeda per varian board.
+// ARDUINO_USB_CDC_ON_BOOT hanya di-set pada env:esp32s3 (lihat platformio.ini),
+// sehingga dipakai sebagai penanda varian S3 vs ESP32 classic (esp32_wroom).
+#if defined(ARDUINO_USB_CDC_ON_BOOT)
+    // ESP32-S3 DevKitC
+    #define RGB_PIN 48
+    #define BUZZER_PIN 6
+    #define RELAY_DOOR_PIN 15
+    #define RELAY_VALVE_PIN 16
+#else
+    // ESP32 classic / WROOM
+    #define RGB_PIN 4
+    #define BUZZER_PIN 14
+    #define RELAY_DOOR_PIN 25   // Relay CH1 -> Solenoid Door Lock 12V
+    #define RELAY_VALVE_PIN 26  // Relay CH2 -> Solenoid Water/Gas Valve 12V
+#endif
 
-#define RGB_PIN 48
-#define SERVO_PIN 5
-#define BUZZER_PIN 6
-
-Servo myServo; // Default RGB LED pin for ESP32-S3 DevKitC
+// Modul relay 2-channel (active LOW): LOW = relay ON (energized), HIGH = relay OFF
+#define RELAY_ON  LOW
+#define RELAY_OFF HIGH
 
 ConfigManager configMgr;
 NetworkManager networkMgr;
@@ -32,6 +45,7 @@ Adafruit_NeoPixel pixels(1, RGB_PIN, NEO_GRB + NEO_KHZ800);
 QueueHandle_t eventQueue;
 unsigned long global_alarm_until = 0;
 bool is_valve_locked = false;
+bool is_door_locked = true; // Default: pintu terkunci
 float local_latest_pga = 0.0;
 unsigned long local_alarm_until = 0;
 unsigned long identify_until = 0;
@@ -56,16 +70,14 @@ void networkTaskCode(void* parameter) {
     pixels.begin();
     pinMode(BUZZER_PIN, OUTPUT);
     pinMode(BUZZER_PIN, OUTPUT); digitalWrite(BUZZER_PIN, HIGH); // ACTIVE LOW: HIGH artinya MATI
-    
-    // ESP32-S3 PWM Timer Allocation untuk Servo (Hanya alokasi, tidak di-enable)
-    ESP32PWM::allocateTimer(0);
-    ESP32PWM::allocateTimer(1);
-    ESP32PWM::allocateTimer(2);
-    ESP32PWM::allocateTimer(3);
-    myServo.setPeriodHertz(50);
-    // Servo sengaja TIDAK di-attach di sini agar tidak auto-enable saat alat menyala
+
+    pinMode(RELAY_DOOR_PIN, OUTPUT);
+    pinMode(RELAY_VALVE_PIN, OUTPUT);
+    digitalWrite(RELAY_DOOR_PIN, is_door_locked ? RELAY_OFF : RELAY_ON);
+    digitalWrite(RELAY_VALVE_PIN, is_valve_locked ? RELAY_OFF : RELAY_ON);
+
     float breathAngle = 0;
-    
+
     SensorEvent ev;
     
     while(1) {
@@ -91,24 +103,26 @@ void networkTaskCode(void* parameter) {
             
             bool hw611_ok = sensorMgr.bme_ok || sensorMgr.bmp_ok;
             
-            // LOGIKA VALVE MANUAL RESET (Hanya nyalakan motor saat diperintah sistem)
-            static bool last_valve_state = false;
+            // LOGIKA RELAY VALVE (Solenoid Water/Gas Valve 12V)
+            // Fail-safe: valve tertutup (OFF) saat is_valve_locked true (gempa/gas bocor/manual)
+            static bool last_valve_state = is_valve_locked;
             if (is_valve_locked != last_valve_state) {
-                myServo.attach(SERVO_PIN, 500, 2400); // Sistem meng-enable motor
-                
-                if (is_valve_locked) {
-                    myServo.write(90); // Sistem menggerakkan katup ke posisi Tutup (90)
-                } else {
-                    myServo.write(0);  // Sistem mereset katup ke posisi Buka (0)
-                }
-                
-                vTaskDelay(pdMS_TO_TICKS(1000)); // Beri waktu 1 detik agar motor selesai berputar fisik
-                myServo.detach(); // Sistem mematikan/melepas motor kembali (Hemat baterai & tidak memaksa)
-                
+                digitalWrite(RELAY_VALVE_PIN, is_valve_locked ? RELAY_OFF : RELAY_ON);
                 last_valve_state = is_valve_locked;
             }
 
-            
+            // LOGIKA RELAY DOOR LOCK (Solenoid Door Lock 12V)
+            // Auto-unlock saat alarm gempa terkonfirmasi, atau dikontrol manual via MQTT
+            static bool last_door_state = is_door_locked;
+            if (is_global_alarm) {
+                is_door_locked = false; // Paksa buka pintu untuk evakuasi
+            }
+            if (is_door_locked != last_door_state) {
+                digitalWrite(RELAY_DOOR_PIN, is_door_locked ? RELAY_OFF : RELAY_ON);
+                last_door_state = is_door_locked;
+            }
+
+
             if (millis() < identify_until) {
                 // IDENTIFY MODE: Berkedip Putih
                 if ((millis() / 200) % 2 == 0) pixels.setPixelColor(0, pixels.Color(255, 255, 255));
@@ -216,14 +230,12 @@ void setup() {
     pixels.begin();
     pinMode(BUZZER_PIN, OUTPUT);
     pinMode(BUZZER_PIN, OUTPUT); digitalWrite(BUZZER_PIN, HIGH); // ACTIVE LOW: HIGH artinya MATI
-    
-    // ESP32-S3 PWM Timer Allocation untuk Servo (Hanya alokasi, tidak di-enable)
-    ESP32PWM::allocateTimer(0);
-    ESP32PWM::allocateTimer(1);
-    ESP32PWM::allocateTimer(2);
-    ESP32PWM::allocateTimer(3);
-    myServo.setPeriodHertz(50);
-    // Servo sengaja TIDAK di-attach di sini agar tidak auto-enable saat alat menyala
+
+    pinMode(RELAY_DOOR_PIN, OUTPUT);
+    pinMode(RELAY_VALVE_PIN, OUTPUT);
+    digitalWrite(RELAY_DOOR_PIN, is_door_locked ? RELAY_OFF : RELAY_ON);
+    digitalWrite(RELAY_VALVE_PIN, is_valve_locked ? RELAY_OFF : RELAY_ON);
+
     pixels.setPixelColor(0, pixels.Color(0, 0, 40));
     pixels.show();
     

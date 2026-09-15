@@ -65,6 +65,8 @@ void NetworkManager::publishEvent(float pga, float sta_lta, int freq_hz, float a
     doc["ay"]      = ay;
     doc["az"]      = az;
     doc["valve_status"] = is_valve_locked ? "DISABLED" : "ENABLED";
+    doc["door_status"] = is_door_locked ? "LOCKED" : "UNLOCKED";
+    doc["gas_alert"] = sensorMgr.gas_leak_detected;
     doc["temperature"] = temp;
     doc["pressure"] = pres;
     
@@ -111,9 +113,10 @@ void NetworkManager::mqttCallback(char* topic, byte* payload, unsigned int lengt
             bool is_bypass = doc["bypass"] | false;
             
             if (dist < 50.0 || is_bypass) {
-                Serial.println("[!] SIRINE MENYALA! Valve Dikunci Tutup!");
+                Serial.println("[!] SIRINE MENYALA! Valve Dikunci Tutup, Pintu Dibuka untuk Evakuasi!");
                 global_alarm_until = millis() + 15000;
                 is_valve_locked = true;
+                is_door_locked = false;
             } else {
                 Serial.println("[i] Epicenter terlalu jauh. Abaikan.");
             }
@@ -134,6 +137,24 @@ void NetworkManager::mqttCallback(char* topic, byte* payload, unsigned int lengt
                 is_valve_locked = true;
             } else {
                 Serial.println("[i] Perintah Disable diabaikan (Bukan untuk Node ini).");
+            }
+        } else if (doc["cmd"] == "lock_door") {
+            String target = doc["target_node"] | "all";
+            String my_id = String(instance->_configMgr->config.node_id);
+            if (target == "all" || target == my_id) {
+                Serial.println("[i] Perintah Sistem: Pintu di-LOCK.");
+                is_door_locked = true;
+            } else {
+                Serial.println("[i] Perintah Lock Door diabaikan (Bukan untuk Node ini).");
+            }
+        } else if (doc["cmd"] == "unlock_door") {
+            String target = doc["target_node"] | "all";
+            String my_id = String(instance->_configMgr->config.node_id);
+            if (target == "all" || target == my_id) {
+                Serial.println("[i] Perintah Sistem: Pintu di-UNLOCK.");
+                is_door_locked = false;
+            } else {
+                Serial.println("[i] Perintah Unlock Door diabaikan (Bukan untuk Node ini).");
             }
         } else if (doc["cmd"] == "identify") {
             String target = doc["target_node"] | "all";
