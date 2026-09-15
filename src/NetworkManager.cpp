@@ -21,7 +21,7 @@ void NetworkManager::begin(ConfigManager* configMgr) {
     instance = this;
     
     // Ganti IP broker ke IP laptop user
-    mqtt.setServer("192.168.68.105", 1883);
+    mqtt.setServer(_configMgr->config.mqtt_server, 1883);
     mqtt.setCallback(NetworkManager::mqttCallback);
 }
 
@@ -164,6 +164,18 @@ void NetworkManager::mqttCallback(char* topic, byte* payload, unsigned int lengt
                 prefs.end();
                 delay(1000);
                 ESP.restart();
+            }
+        } else if (doc["cmd"] == "set_broker") {
+            String target = doc["target_node"] | "all";
+            String my_id = String(instance->_configMgr->config.node_id);
+            if (target == "all" || target == my_id) {
+                if (doc.containsKey("server")) {
+                    strlcpy(instance->_configMgr->config.mqtt_server, doc["server"].as<const char*>(), 64);
+                    instance->_configMgr->saveConfig();
+                    Serial.println("[i] Perintah Sistem: SET BROKER. Restarting ESP32...");
+                    delay(1000);
+                    ESP.restart();
+                }
             }
         } else if (doc["cmd"] == "force_update" || doc["cmd"] == "reboot") {
             String target = doc["target_node"] | "all";

@@ -10,7 +10,7 @@
 #include "esp_ota_ops.h"
 #include "esp_system.h"
 
-#define CURRENT_VERSION "v1.1.19"
+#define CURRENT_VERSION "v1.1.20"
 #define REPO_OWNER "Lindu-EEW"
 #define REPO_NAME "lindu_node"
 
