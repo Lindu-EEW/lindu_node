@@ -1,6 +1,9 @@
 #include <Preferences.h>
 #include "OTAUpdater.h"
 #include "NetworkManager.h"
+
+bool remote_debug_enabled = false;
+
 #include <Preferences.h>
 extern Preferences actPrefs;
 
@@ -276,6 +279,8 @@ void NetworkManager::publishStatus(String status, bool sensor_ok, float tilt_ang
 
 void NetworkManager::publishLog(const char* message) {
     if (!mqtt.connected()) return;
+    if (!remote_debug_enabled) return; // Hanya kirim log jika user menekan ENABLE DEBUG di Grafana
+
     char topic[64];
     snprintf(topic, sizeof(topic), "lindu/sensor/%s/log", _configMgr->config.node_id);
     
