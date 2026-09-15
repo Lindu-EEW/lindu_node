@@ -117,7 +117,9 @@ void networkTaskCode(void* parameter) {
             otaUpdater.loop();
             breathAngle += 0.05;
             if (breathAngle > 2 * PI) breathAngle -= 2 * PI;
-            int brightness = (sin(breathAngle) + 1.0) * 20.0; 
+            // Mode "Kamar Tidur": Diturunkan dari pengali 20.0 menjadi 3.0 (Kecerahan max hanya 6/255)
+            // LED akan bernafas dengan sangat, sangat redup dan tidak menyilaukan saat lampu kamar dimatikan.
+            int brightness = (sin(breathAngle) + 1.0) * 3.0; 
             
             bool hw611_ok = sensorMgr.bme_ok || sensorMgr.bmp_ok;
             
