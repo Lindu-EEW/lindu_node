@@ -188,7 +188,15 @@ void networkTaskCode(void* parameter) {
                 } else {
                     pixels.setPixelColor(0, pixels.Color(0, 0, 0));
                     digitalWrite(BUZZER_PIN, HIGH);
-                }} else if (!sensorMgr.sensor_ok && !hw611_ok) {
+                }
+            } else if (otaUpdater.ota_status == "DOWNLOADING_FIRMWARE" || otaUpdater.ota_status == "CHECKING_GITHUB") {
+                // OTA SEDANG MENGUNDUH: Berkedip Kuning/Oranye sangat cepat layaknya loading
+                if ((millis() / 80) % 2 == 0) pixels.setPixelColor(0, pixels.Color(255, 120, 0));
+                else pixels.setPixelColor(0, pixels.Color(0, 0, 0));
+            } else if (otaUpdater.ota_status == "UPDATE_SUCCESS_RESTARTING") {
+                // OTA SELESAI & SIAP RESTART: Menyala Ungu Solid
+                pixels.setPixelColor(0, pixels.Color(128, 0, 128));
+            } else if (!sensorMgr.sensor_ok && !hw611_ok) {
                 
                 // Semua sensor mati: Berkedip Merah Cepat (Bahaya Fatal)
                 if ((millis() / 200) % 2 == 0) pixels.setPixelColor(0, pixels.Color(50, 0, 0));
