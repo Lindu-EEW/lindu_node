@@ -38,14 +38,20 @@ void NetworkManager::reconnectMQTT() {
     if (millis() - _last_reconnect_attempt > 5000) {
         _last_reconnect_attempt = millis();
         
-        String willTopic = "lindu/sensor/" + String(_configMgr->config.node_id) + "/status";
-        String willPayload = "{\"status\":\"offline\",\"node_id\":\"" + String(_configMgr->config.node_id) + "\"}";
+        char willTopic[64];
+        snprintf(willTopic, sizeof(willTopic), "lindu/sensor/%s/status", _configMgr->config.node_id);
         
-        if (mqtt.connect(_configMgr->config.node_id, willTopic.c_str(), 1, true, willPayload.c_str())) {
+        char willPayload[128];
+        snprintf(willPayload, sizeof(willPayload), "{\"status\":\"offline\",\"node_id\":\"%s\"}", _configMgr->config.node_id);
+        
+        if (mqtt.connect(_configMgr->config.node_id, willTopic, 1, true, willPayload)) {
             Serial.println("TERHUBUNG KE MQTT!");
             
-            String statusPayload = "{\"status\":\"online\",\"node_id\":\"" + String(_configMgr->config.node_id) + "\",\"lat\":" + String(_configMgr->config.lat, 4) + ",\"lon\":" + String(_configMgr->config.lon, 4) + ",\"pose\":\"" + sensorMgr.getPose() + "\",\"tilt_angle\":" + String(sensorMgr.getTiltAngle(), 1) + ",\"sensor_ok\":" + String(sensorMgr.sensor_ok ? "true" : "false") + "}";
-            mqtt.publish(willTopic.c_str(), statusPayload.c_str(), true);
+            char statusPayload[512];
+            snprintf(statusPayload, sizeof(statusPayload), 
+                "{\"status\":\"online\",\"node_id\":\"%s\",\"lat\":%.4f,\"lon\":%.4f,\"pose\":\"%s\",\"tilt_angle\":%.1f,\"sensor_ok\":%s}",
+                _configMgr->config.node_id, _configMgr->config.lat, _configMgr->config.lon, sensorMgr.getPose().c_str(), sensorMgr.getTiltAngle(), sensorMgr.sensor_ok ? "true" : "false");
+            mqtt.publish(willTopic, statusPayload, true);
             
             mqtt.subscribe("lindu/actuator/cmd/all", 1);
         }
@@ -77,8 +83,9 @@ void NetworkManager::publishEvent(float pga, float sta_lta, int freq_hz, float a
     char buffer[512];
     serializeJson(doc, buffer);
     
-    String topic = "lindu/sensor/" + String(_configMgr->config.node_id) + "/telemetry";
-    mqtt.publish(topic.c_str(), buffer);
+    char topic[64];
+    snprintf(topic, sizeof(topic), "lindu/sensor/%s/telemetry", _configMgr->config.node_id);
+    mqtt.publish(topic, buffer);
 }
 
 float NetworkManager::haversine(float lat1, float lon1, float lat2, float lon2) {
@@ -210,7 +217,13 @@ void NetworkManager::forcePublishStatus() {
 
 void NetworkManager::publishStatus(String status, bool sensor_ok, float tilt_angle, String pose) {
     if (!mqtt.connected()) return;
-    String willTopic = "lindu/sensor/" + String(_configMgr->config.node_id) + "/status";
-    String statusPayload = "{\"status\":\"" + status + "\",\"node_id\":\"" + String(_configMgr->config.node_id) + "\",\"lat\":" + String(_configMgr->config.lat, 4) + ",\"lon\":" + String(_configMgr->config.lon, 4) + ",\"pose\":\"" + pose + "\",\"tilt_angle\":" + String(tilt_angle, 1) + ",\"sensor_ok\":" + String(sensor_ok ? "true" : "false") + ",\"fw_version\":\"" + String(CURRENT_VERSION) + "\",\"ota_status\":\"" + otaUpdater.ota_status + "\"}";
-    mqtt.publish(willTopic.c_str(), statusPayload.c_str(), true);
+    char willTopic[64];
+    snprintf(willTopic, sizeof(willTopic), "lindu/sensor/%s/status", _configMgr->config.node_id);
+    
+    char statusPayload[512];
+    snprintf(statusPayload, sizeof(statusPayload), 
+        "{\"status\":\"%s\",\"node_id\":\"%s\",\"lat\":%.4f,\"lon\":%.4f,\"pose\":\"%s\",\"tilt_angle\":%.1f,\"sensor_ok\":%s,\"fw_version\":\"%s\",\"ota_status\":\"%s\"}",
+        status.c_str(), _configMgr->config.node_id, _configMgr->config.lat, _configMgr->config.lon, pose.c_str(), tilt_angle, sensor_ok ? "true" : "false", CURRENT_VERSION, otaUpdater.ota_status.c_str());
+        
+    mqtt.publish(willTopic, statusPayload, true);
 }

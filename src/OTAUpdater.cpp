@@ -1,3 +1,4 @@
+#include <esp_task_wdt.h>
 #include "OTAUpdater.h"
 #include "ConfigManager.h"
 extern ConfigManager configMgr;
@@ -53,14 +54,23 @@ void OTAUpdater::confirmWorking() {
     // In our case, begin() already marked it valid.
 }
 
+
+TaskHandle_t otaTaskHandle = NULL;
+void otaTask(void *pvParameters) {
+    OTAUpdater* updater = (OTAUpdater*)pvParameters;
+    updater->checkForUpdate();
+    otaTaskHandle = NULL;
+    vTaskDelete(NULL);
+}
+
 void OTAUpdater::loop() {
     // Check update every 24 hours (or at boot + 30s)
-    if (_last_check == 0 && millis() > 30000) {
-        checkForUpdate();
+    if ((_last_check == 0 && millis() > 30000) || (millis() - _last_check > 43200000)) {
         _last_check = millis();
-    } else if (millis() - _last_check > 43200000) { // 12 Jam
-        checkForUpdate();
-        _last_check = millis();
+        if (otaTaskHandle == NULL) {
+            Serial.println("[OTA] Memicu FreeRTOS Background Task di Core 0...");
+            xTaskCreatePinnedToCore(otaTask, "OTA_Task", 8192, this, 1, &otaTaskHandle, 0); // Core 0
+        }
     }
 }
 
