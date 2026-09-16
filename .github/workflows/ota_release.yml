@@ -2,8 +2,8 @@ name: Build and Release OTA Firmware
 
 on:
   push:
-    tags:
-      - 'v*.*.*'
+    branches:
+      - main
 
 permissions:
   contents: write
@@ -17,7 +17,7 @@ jobs:
     
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Setup Python
         uses: actions/setup-python@v4
@@ -30,9 +30,10 @@ jobs:
           pip install -U platformio
           pio update
 
-      - name: Inject Version Tag into Code
+      - name: Inject Auto-Increment Version Tag
         run: |
-          TAG_NAME=${GITHUB_REF#refs/tags/}
+          # Menggunakan GitHub Run Number sebagai versi otomatis (misal: v1.4.66)
+          TAG_NAME="v1.4.${GITHUB_RUN_NUMBER}"
           echo "Patching OTAUpdater.h with version: $TAG_NAME"
           sed -i "s/#define CURRENT_VERSION.*/#define CURRENT_VERSION \"$TAG_NAME\"/" src/OTAUpdater.h
 
@@ -56,15 +57,15 @@ jobs:
     steps:
       - name: Download all workflow run artifacts
         uses: actions/download-artifact@v4
-
-      - name: Flatten directory structure
-        run: |
-          mv firmware-esp32s3/firmware_esp32s3.bin .
-          mv firmware-esp32_wroom/firmware_esp32_wroom.bin .
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
         with:
+          pattern: firmware-*
+          merge-multiple: true
+      
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.4.${{ github.run_number }}
+          name: Auto Release v1.4.${{ github.run_number }}
           files: firmware_*.bin
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
