@@ -4,8 +4,6 @@
 extern ConfigManager configMgr;
 #include "NetworkManager.h"
 extern NetworkManager networkMgr;
-#include <Adafruit_NeoPixel.h>
-extern Adafruit_NeoPixel pixels;
 
 OTAUpdater otaUpdater;
 

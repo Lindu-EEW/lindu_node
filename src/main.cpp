@@ -35,7 +35,11 @@ bool is_rescue_mode = false;
 #else
     // ESP32 classic / WROOM (unit pengujian): valve & door-lock pakai relay 2-channel
     #define USE_SERVO_VALVE 0
-    #define RGB_PIN 4
+    // LED RGB modul unit pengujian adalah LED RGB analog biasa (katoda umum,
+    // 3 kaki PWM terpisah R/G/B), BUKAN NeoPixel/WS2812 satu-pin seperti di S3.
+    #define RGB_R_PIN 4
+    #define RGB_G_PIN 16
+    #define RGB_B_PIN 17
     #define BUZZER_PIN 14
     #define RELAY_DOOR_PIN 25   // Relay CH1 -> Solenoid Door Lock 12V
     #define RELAY_VALVE_PIN 26  // Relay CH2 -> Solenoid Water/Gas Valve 12V
@@ -47,7 +51,36 @@ bool is_rescue_mode = false;
 ConfigManager configMgr;
 NetworkManager networkMgr;
 SensorManager sensorMgr;
+
+#if ARDUINO_USB_CDC_ON_BOOT
 Adafruit_NeoPixel pixels(1, RGB_PIN, NEO_GRB + NEO_KHZ800);
+#else
+// Shim minimal yang meniru API Adafruit_NeoPixel (begin/Color/setPixelColor/show)
+// agar kode animasi LED di bawah tidak perlu diubah, tapi outputnya lewat
+// 3 pin analogWrite/PWM biasa ke LED RGB modul analog (katoda umum).
+class AnalogRGB {
+public:
+    AnalogRGB(uint8_t rPin, uint8_t gPin, uint8_t bPin) : _r(rPin), _g(gPin), _b(bPin) {}
+    void begin() {
+        pinMode(_r, OUTPUT);
+        pinMode(_g, OUTPUT);
+        pinMode(_b, OUTPUT);
+    }
+    static uint32_t Color(uint8_t r, uint8_t g, uint8_t b) {
+        return ((uint32_t)r << 16) | ((uint32_t)g << 8) | b;
+    }
+    void setPixelColor(uint8_t /*index*/, uint32_t color) { _color = color; }
+    void show() {
+        analogWrite(_r, (_color >> 16) & 0xFF);
+        analogWrite(_g, (_color >> 8) & 0xFF);
+        analogWrite(_b, _color & 0xFF);
+    }
+private:
+    uint8_t _r, _g, _b;
+    uint32_t _color = 0;
+};
+AnalogRGB pixels(RGB_R_PIN, RGB_G_PIN, RGB_B_PIN);
+#endif
 
 QueueHandle_t eventQueue;
 unsigned long global_alarm_until = 0;
