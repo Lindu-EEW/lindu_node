@@ -17,7 +17,7 @@ jobs:
     
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Setup Python
         uses: actions/setup-python@v4
@@ -45,7 +45,7 @@ jobs:
           mv .pio/build/${{ matrix.environment }}/firmware.bin firmware_${{ matrix.environment }}.bin
 
       - name: Upload Artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: firmware-${{ matrix.environment }}
           path: firmware_${{ matrix.environment }}.bin
@@ -55,15 +55,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Download all workflow run artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
+        with:
+          pattern: firmware-*
+          merge-multiple: true
       
-      - name: Flatten directory structure
-        run: |
-          mv firmware-esp32s3/firmware_esp32s3.bin .
-          mv firmware-esp32_wroom/firmware_esp32_wroom.bin .
-
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: firmware_*.bin
         env:
