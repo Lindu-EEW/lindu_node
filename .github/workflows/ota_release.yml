@@ -11,7 +11,10 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-
+    strategy:
+      matrix:
+        environment: [esp32s3, esp32_wroom]
+    
     steps:
       - name: Checkout Code
         uses: actions/checkout@v3
@@ -32,16 +35,32 @@ jobs:
           TAG_NAME=${GITHUB_REF#refs/tags/}
           echo "Patching OTAUpdater.h with version: $TAG_NAME"
           sed -i "s/#define CURRENT_VERSION.*/#define CURRENT_VERSION \"$TAG_NAME\"/" src/OTAUpdater.h
-          cat src/OTAUpdater.h | grep CURRENT_VERSION
 
-      - name: Compile ESP32 Firmware
+      - name: Compile Firmware
         run: |
-          pio run
+          pio run -e ${{ matrix.environment }}
 
       - name: Rename Firmware Binary
         run: |
-          mv .pio/build/esp32s3/firmware.bin firmware_esp32s3.bin
-          mv .pio/build/esp32_wroom/firmware.bin firmware_esp32_wroom.bin
+          mv .pio/build/${{ matrix.environment }}/firmware.bin firmware_${{ matrix.environment }}.bin
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: firmware-${{ matrix.environment }}
+          path: firmware_${{ matrix.environment }}.bin
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all workflow run artifacts
+        uses: actions/download-artifact@v3
+      
+      - name: Flatten directory structure
+        run: |
+          mv firmware-esp32s3/firmware_esp32s3.bin .
+          mv firmware-esp32_wroom/firmware_esp32_wroom.bin .
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
