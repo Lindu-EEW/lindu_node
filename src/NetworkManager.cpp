@@ -287,5 +287,5 @@ void NetworkManager::publishLog(const char* message) {
     char payload[256];
     snprintf(payload, sizeof(payload), "{\"message\":\"%s\"}", message);
     
-    mqtt.publish(topic, payload, 0, false); // QoS 0, no retain for logs
+    mqtt.publish(topic, payload); // Menggunakan overload string (otomatis QoS 0, retain false)
 }
