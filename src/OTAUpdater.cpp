@@ -167,25 +167,54 @@ bool OTAUpdater::performUpdate(const char* url, const char* tag) {
     
     int contentLength = http.getSize();
     bool canBegin = Update.begin(contentLength, U_FLASH);
-    
+
     if (canBegin) {
         ota_status = "DOWNLOADING_FIRMWARE"; networkMgr.forcePublishStatus();
         Serial.println("[OTA] Memulai penulisan ke memori Flash...");
-        
-        Update.onProgress([](size_t progress, size_t total) {
-            if (progress % (total / 10) == 0) {
-                Serial.printf("[OTA] Progress: %u%%\n", (progress / (total / 100)));
+
+        // Baca & tulis manual per-chunk (BUKAN Update.writeStream() yang blocking panjang)
+        // supaya task IDLE0 tetap sempat dijadwalkan dan me-reset Task Watchdog-nya.
+        // Tanpa vTaskDelay ini, OTA_Task (pinned Core 0) menahan CPU terlalu lama
+        // sampai esp_task_wdt trigger abort() di tengah proses flashing.
+        WiFiClient* stream = http.getStreamPtr();
+        uint8_t buff[1024];
+        size_t written = 0;
+        int last_pct_logged = -1;
+        unsigned long last_data_ms = millis();
+
+        while (http.connected() && written < (size_t)contentLength) {
+            size_t avail = stream->available();
+            if (avail > 0) {
+                size_t toRead = avail > sizeof(buff) ? sizeof(buff) : avail;
+                size_t readBytes = stream->readBytes(buff, toRead);
+                size_t writtenNow = Update.write(buff, readBytes);
+                if (writtenNow != readBytes) {
+                    Serial.printf("[OTA] Penulisan flash gagal di offset %u!\n", (unsigned)written);
+                    return false;
+                }
+                written += writtenNow;
+                last_data_ms = millis();
+
+                int pct = (int)((written * 100) / contentLength);
+                if (pct != last_pct_logged && pct % 10 == 0) {
+                    Serial.printf("[OTA] Progress: %d%%\n", pct);
+                    last_pct_logged = pct;
+                }
+            } else if (millis() - last_data_ms > 15000) {
+                // Timeout: 15 detik tanpa data baru dari server
+                Serial.println("[OTA] Timeout: tidak ada data masuk selama 15 detik.");
+                return false;
             }
-        });
-        
-        size_t written = Update.writeStream(http.getStream());
-        if (written == contentLength) {
+            vTaskDelay(pdMS_TO_TICKS(1)); // Yield agar IDLE0/Task Watchdog tetap sehat
+        }
+
+        if (written == (size_t)contentLength) {
             Serial.println("[OTA] Penulisan selesai (100%).");
         } else {
-            Serial.printf("[OTA] Penulisan gagal! Ditulis: %d/%d\n", written, contentLength);
+            Serial.printf("[OTA] Penulisan gagal! Ditulis: %d/%d\n", (int)written, contentLength);
             return false;
         }
-        
+
         if (Update.end()) {
             if (Update.isFinished()) {
                 Serial.println("[OTA] Update berhasil divalidasi!");
