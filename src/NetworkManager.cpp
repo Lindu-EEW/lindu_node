@@ -68,6 +68,11 @@ void NetworkManager::reconnectMQTT() {
                 _configMgr->config.node_id, _configMgr->config.lat, _configMgr->config.lon, sensorMgr.getPose().c_str(), sensorMgr.getTiltAngle(), sensorMgr.sensor_ok ? "true" : "false");
             mqtt.publish(willTopic, statusPayload, true);
             
+            // Subscribe ke topik sensor spesifik dan global
+            String my_id = String(_configMgr->config.node_id);
+            mqtt.subscribe("lindu/sensor/cmd/all", 1);
+            mqtt.subscribe(("lindu/sensor/cmd/" + my_id).c_str(), 1);
+            // Tetap subscribe ke topik lama demi kompatibilitas mundur jika ada
             mqtt.subscribe("lindu/actuator/cmd/all", 1);
         }
     }
