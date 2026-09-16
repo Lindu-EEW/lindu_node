@@ -227,6 +227,9 @@ void networkTaskCode(void* parameter) {
                     digitalWrite(BUZZER_PIN, HIGH);
                 }
             } else if (otaUpdater.ota_status == "DOWNLOADING_FIRMWARE" || otaUpdater.ota_status == "CHECKING_GITHUB") {
+                // MATIKAN BUZZER JIKA SEBELUMNYA NYALA
+                analogWrite(BUZZER_PIN, 255); digitalWrite(BUZZER_PIN, HIGH);
+                
                 // OTA SEDANG MENGUNDUH: Berkedip CYAN (Biru Tosca) sangat cepat layaknya loading
                 if ((millis() / 80) % 2 == 0) pixels.setPixelColor(0, pixels.Color(0, 255, 255));
                 else pixels.setPixelColor(0, pixels.Color(0, 0, 0));
