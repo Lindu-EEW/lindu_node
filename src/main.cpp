@@ -48,6 +48,8 @@ bool is_rescue_mode = false;
     #define RELAY_OFF HIGH
 #endif
 
+#define BOOT_BUTTON_PIN 0
+
 ConfigManager configMgr;
 NetworkManager networkMgr;
 SensorManager sensorMgr;
@@ -320,6 +322,7 @@ void networkTaskCode(void* parameter) {
 
 void setup() {
     Serial.begin(115200);
+    pinMode(BOOT_BUTTON_PIN, INPUT_PULLUP);
     delay(2000); // Tunggu Serial stabil
     
     Serial.println("\n\n==========================================");
@@ -428,6 +431,24 @@ void setup() {
 }
 
 void loop() {
+    // --- TOMBOL BOOT (FACTORY RESET) ---
+    static unsigned long boot_press_time = 0;
+    if (digitalRead(BOOT_BUTTON_PIN) == LOW) {
+        if (boot_press_time == 0) {
+            boot_press_time = millis();
+        } else if (millis() - boot_press_time > 5000) { // Tahan 5 detik
+            Serial.println("\n[!] FACTORY RESET VIA TOMBOL BOOT DIMULAI!");
+            digitalWrite(BUZZER_PIN, LOW); // Bunyikan bel
+            configMgr.resetConfig();
+            Preferences prefs;
+            prefs.begin("ota", false); prefs.clear(); prefs.end();
+            delay(1000);
+            ESP.restart();
+        }
+    } else {
+        boot_press_time = 0;
+    }
+
     // TASK CORE 1: Membaca Sensor (I2C) & Filter DSP (Real-time murni)
     sensorMgr.loop();  
     
