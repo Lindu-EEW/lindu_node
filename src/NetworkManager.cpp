@@ -93,12 +93,9 @@ void NetworkManager::publishEvent(float pga, float sta_lta, int freq_hz, float a
     doc["ay"]      = ay;
     doc["az"]      = az;
     doc["valve_status"] = is_valve_locked ? "DISABLED" : "ENABLED";
-#if !ARDUINO_USB_CDC_ON_BOOT
-    // Field baru khusus unit ESP32 classic (door lock + gas sensor); TIDAK
-    // ditambahkan pada payload S3 agar format telemetry S3 tetap identik dengan main.
-    doc["door_status"] = is_door_locked ? "LOCKED" : "UNLOCKED";
+doc["door_status"] = is_door_locked ? "LOCKED" : "UNLOCKED";
     doc["gas_alert"] = sensorMgr.gas_leak_detected;
-#endif
+    doc["gas_raw"] = sensorMgr.gas_raw_value;
     doc["temperature"] = temp;
     doc["pressure"] = pres;
     
