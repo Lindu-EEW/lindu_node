@@ -93,7 +93,11 @@ void NetworkManager::publishEvent(float pga, float sta_lta, int freq_hz, float a
     doc["ay"]      = ay;
     doc["az"]      = az;
     doc["valve_status"] = is_valve_locked ? "DISABLED" : "ENABLED";
-doc["door_status"] = is_door_locked ? "LOCKED" : "UNLOCKED";
+#if !ARDUINO_USB_CDC_ON_BOOT
+    doc["door_status"] = is_door_locked ? "LOCKED" : "UNLOCKED";
+#else
+    doc["door_status"] = "UNAVAILABLE";
+#endif
     doc["gas_alert"] = sensorMgr.gas_leak_detected;
     doc["gas_raw"] = sensorMgr.gas_raw_value;
     doc["temperature"] = temp;
