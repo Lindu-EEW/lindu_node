@@ -48,7 +48,7 @@ bool is_rescue_mode = false;
     #define BUZZER_PIN 14
     #define RELAY_DOOR_PIN 25   // Relay CH1 -> Solenoid Door Lock 12V
     #define RELAY_VALVE_PIN 26  // Relay CH2 -> Solenoid Water/Gas Valve 12V
-    #define PIR_PIN 27          // Sensor PIR (HC-SR501/sejenis) - deteksi gerakan, OUTPUT sensor langsung ke GPIO (HIGH = ada gerakan)
+    #define PIR_PIN 27          // Sensor PIR (HC-SR501/sejenis) - OUTPUT sensor ke GPIO (HIGH = ada gerakan), INPUT_PULLDOWN agar aman saat sensor belum terpasang
     #define OCCUPANCY_WINDOW_MS 600000UL // 10 menit - jika ADA MINIMAL 1 deteksi PIR dalam window ini, pintu auto-unlock
     // Modul relay 2-channel (active LOW): LOW = relay ON (energized), HIGH = relay OFF
     #define RELAY_ON  LOW
@@ -143,7 +143,11 @@ void networkTaskCode(void* parameter) {
     pinMode(RELAY_VALVE_PIN, OUTPUT);
     digitalWrite(RELAY_DOOR_PIN, is_door_locked ? RELAY_OFF : RELAY_ON);
     digitalWrite(RELAY_VALVE_PIN, is_valve_locked ? RELAY_OFF : RELAY_ON);
-    pinMode(PIR_PIN, INPUT); // Sensor PIR aktif men-drive HIGH/LOW sendiri, tidak butuh pull resistor internal
+    // INPUT_PULLDOWN (bukan INPUT polos): kalau sensor PIR belum/tidak terpasang, GPIO
+    // mengambang bisa kebaca HIGH terus oleh noise, membuat occupancy logic mengira
+    // ada gerakan terus-menerus dan pintu tidak pernah terkunci. Pull-down memaksa
+    // default LOW (tidak ada gerakan) saat tidak ada sensor yang aktif men-drive pin.
+    pinMode(PIR_PIN, INPUT_PULLDOWN);
 #endif
 
     float breathAngle = 0;
@@ -398,7 +402,11 @@ void setup() {
     pinMode(RELAY_VALVE_PIN, OUTPUT);
     digitalWrite(RELAY_DOOR_PIN, is_door_locked ? RELAY_OFF : RELAY_ON);
     digitalWrite(RELAY_VALVE_PIN, is_valve_locked ? RELAY_OFF : RELAY_ON);
-    pinMode(PIR_PIN, INPUT); // Sensor PIR aktif men-drive HIGH/LOW sendiri, tidak butuh pull resistor internal
+    // INPUT_PULLDOWN (bukan INPUT polos): kalau sensor PIR belum/tidak terpasang, GPIO
+    // mengambang bisa kebaca HIGH terus oleh noise, membuat occupancy logic mengira
+    // ada gerakan terus-menerus dan pintu tidak pernah terkunci. Pull-down memaksa
+    // default LOW (tidak ada gerakan) saat tidak ada sensor yang aktif men-drive pin.
+    pinMode(PIR_PIN, INPUT_PULLDOWN);
 #endif
 
     pixels.setPixelColor(0, pixels.Color(0, 0, 40));
