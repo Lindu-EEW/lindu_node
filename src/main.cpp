@@ -254,6 +254,17 @@ void networkTaskCode(void* parameter) {
                     pixels.setPixelColor(0, pixels.Color(0, 0, 0));
                     analogWrite(BUZZER_PIN, BUZZER_OFF_DUTY); // MATI
                 }
+            } else if (sensorMgr.gas_leak_detected) {
+                // KEBOCORAN GAS TERDETEKSI (MQ-2): Berkedip Oranye & Buzzer Menyala.
+                // Pola blink lebih lambat dari alarm gempa (300ms vs 100ms) supaya
+                // operator bisa membedakan jenis alarm dari suara/kedipannya.
+                if ((millis() / 300) % 2 == 0) {
+                    pixels.setPixelColor(0, pixels.Color(255, 100, 0));
+                    analogWrite(BUZZER_PIN, BUZZER_ON_DUTY);
+                } else {
+                    pixels.setPixelColor(0, pixels.Color(0, 0, 0));
+                    analogWrite(BUZZER_PIN, BUZZER_OFF_DUTY);
+                }
             } else if (is_local_alarm) {
                 // DETEKSI GETARAN LOKAL (Menunggu Konfirmasi Node Lain): HANYA Berkedip Pink
                 if ((millis() / 500) % 2 == 0) {
@@ -295,8 +306,8 @@ void networkTaskCode(void* parameter) {
         
         // Matikan speaker sepenuhnya jika kondisi aman
         static bool is_buzzer_active = false;
-        
-        if (is_global_alarm || is_local_alarm) {
+
+        if (is_global_alarm || is_local_alarm || sensorMgr.gas_leak_detected) {
             is_buzzer_active = true;
         } else {
             if (is_buzzer_active) {
