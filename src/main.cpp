@@ -49,6 +49,7 @@ bool is_rescue_mode = false;
     #define RELAY_DOOR_PIN 25   // Relay CH1 -> Solenoid Door Lock 12V
     #define RELAY_VALVE_PIN 26  // Relay CH2 -> Solenoid Water/Gas Valve 12V
     #define PIR_PIN 27          // Sensor PIR (HC-SR501/sejenis) - deteksi gerakan, OUTPUT sensor langsung ke GPIO (HIGH = ada gerakan)
+    #define OCCUPANCY_WINDOW_MS 600000UL // 10 menit - jika ADA MINIMAL 1 deteksi PIR dalam window ini, pintu auto-unlock
     // Modul relay 2-channel (active LOW): LOW = relay ON (energized), HIGH = relay OFF
     #define RELAY_ON  LOW
     #define RELAY_OFF HIGH
@@ -105,6 +106,7 @@ Preferences actPrefs;
 bool is_door_locked = true; // Default: pintu terkunci (khusus unit ESP32 classic)
 #endif
 bool is_motion_detected = false; // Khusus unit ESP32 classic (sensor PIR belum dipasang di S3), selalu false di S3
+unsigned long last_motion_ms = 0; // Timestamp deteksi PIR terakhir (khusus classic), dipakai untuk window occupancy 10 menit
 float local_latest_pga = 0.0;
 unsigned long local_alarm_until = 0;
 unsigned long identify_until = 0;
@@ -206,19 +208,28 @@ void networkTaskCode(void* parameter) {
                 last_valve_state = is_valve_locked;
             }
 
+            // SENSOR PIR: Deteksi gerakan/orang di lokasi (HIGH = ada gerakan).
+            // Dibaca duluan agar window occupancy di bawah selalu pakai data terbaru.
+            is_motion_detected = digitalRead(PIR_PIN) == HIGH;
+            if (is_motion_detected) {
+                last_motion_ms = millis();
+            }
+
             // LOGIKA RELAY DOOR LOCK (Solenoid Door Lock 12V)
-            // Auto-unlock saat alarm gempa terkonfirmasi, atau dikontrol manual via MQTT
+            // OTOMATIS berdasarkan occupancy PIR: pintu ke-unlock kalau ADA MINIMAL 1
+            // deteksi gerakan dalam 10 menit terakhir (asumsi ada orang di lokasi),
+            // dan otomatis terkunci lagi begitu area sepi >10 menit. Alarm gempa tetap
+            // prioritas tertinggi dan memaksa buka terlepas dari status occupancy ini.
             static bool last_door_state = is_door_locked;
+            bool occupancy_recent = (last_motion_ms > 0) && (millis() - last_motion_ms < OCCUPANCY_WINDOW_MS);
+            is_door_locked = !occupancy_recent;
             if (is_global_alarm) {
-                is_door_locked = false; // Paksa buka pintu untuk evakuasi
+                is_door_locked = false; // Paksa buka pintu untuk evakuasi (override occupancy)
             }
             if (is_door_locked != last_door_state) {
                 digitalWrite(RELAY_DOOR_PIN, is_door_locked ? RELAY_OFF : RELAY_ON);
                 last_door_state = is_door_locked;
             }
-
-            // SENSOR PIR: Deteksi gerakan/orang di lokasi (HIGH = ada gerakan)
-            is_motion_detected = digitalRead(PIR_PIN) == HIGH;
 #endif
 
 
