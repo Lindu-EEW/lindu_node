@@ -220,15 +220,18 @@ void networkTaskCode(void* parameter) {
             }
 
             // LOGIKA RELAY DOOR LOCK (Solenoid Door Lock 12V)
-            // OTOMATIS berdasarkan occupancy PIR: pintu ke-unlock kalau ADA MINIMAL 1
-            // deteksi gerakan dalam 10 menit terakhir (asumsi ada orang di lokasi),
-            // dan otomatis terkunci lagi begitu area sepi >10 menit. Alarm gempa tetap
-            // prioritas tertinggi dan memaksa buka terlepas dari status occupancy ini.
+            // Default: ikut perintah manual (lock_door/unlock_door) atau cancel_alarm.
+            // KHUSUS selama alarm gempa aktif (is_global_alarm): pintu HANYA unlock kalau
+            // ADA MINIMAL 1 deteksi PIR dalam 10 menit terakhir (asumsi ada orang di lokasi
+            // untuk evakuasi); kalau tidak ada yang terdeteksi, pintu tetap terkunci
+            // walau alarm aktif. Dievaluasi ulang tiap tick SELAMA alarm masih berlangsung
+            // (bukan cuma sekali di saat trigger) supaya tetap responsif kalau ada orang
+            // baru terdeteksi di tengah-tengah alarm. Di luar alarm, occupancy PIR tidak
+            // dicek sama sekali - status pintu murni ikut perintah manual/cancel_alarm.
             static bool last_door_state = is_door_locked;
-            bool occupancy_recent = (last_motion_ms > 0) && (millis() - last_motion_ms < OCCUPANCY_WINDOW_MS);
-            is_door_locked = !occupancy_recent;
             if (is_global_alarm) {
-                is_door_locked = false; // Paksa buka pintu untuk evakuasi (override occupancy)
+                bool occupancy_recent = (last_motion_ms > 0) && (millis() - last_motion_ms < OCCUPANCY_WINDOW_MS);
+                is_door_locked = !occupancy_recent;
             }
             if (is_door_locked != last_door_state) {
                 digitalWrite(RELAY_DOOR_PIN, is_door_locked ? RELAY_OFF : RELAY_ON);
@@ -313,8 +316,11 @@ void networkTaskCode(void* parameter) {
                 
                 // ========== OFFLINE FAIL-SAFE (LONE WOLF MODE) ==========
                 // Jika MQTT server mati DAN getaran AMAT SANGAT BRUTAL (PGA > 0.60G),
-                // ESP32 mengambil alih kekuasaan mutlak: langsung membunyikan sirine,
-                // mengunci katup gas, dan membuka pintu untuk evakuasi.
+                // ESP32 mengambil alih kekuasaan mutlak: langsung membunyikan sirine dan
+                // mengunci katup gas (global_alarm_until diset, sama seperti trigger_siren
+                // biasa). Pintu TIDAK dipaksa buka langsung di sini - begitu global_alarm_until
+                // aktif, loop occupancy di networkTaskCode yang menentukan: unlock hanya
+                // kalau PIR mendeteksi orang dalam 10 menit terakhir, sama seperti alarm biasa.
                 // Ini adalah garis pertahanan terakhir saat infrastruktur internet runtuh.
                 if (!networkMgr.isConnected() && ev.pga > 0.60) {
                     Serial.println("[!!!] LONE WOLF MODE: Server offline + PGA EKSTREM! Mengambil alih kendali!");
@@ -322,9 +328,6 @@ void networkTaskCode(void* parameter) {
                     global_alarm_until = millis() + 15000; // Sirine merah 15 detik
                     is_valve_locked = true;
                     actPrefs.putBool("valve_locked", true);
-#if !ARDUINO_USB_CDC_ON_BOOT
-                    is_door_locked = false; // Buka pintu untuk evakuasi (Classic only)
-#endif
                 }
                 
                 // TICK Dinamis: Volume/Intensitas diwakili oleh durasi (Haptic Feedback)
