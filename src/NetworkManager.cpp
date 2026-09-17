@@ -148,25 +148,24 @@ void NetworkManager::mqttCallback(char* topic, byte* payload, unsigned int lengt
             
             if (dist < 50.0 || is_bypass) {
 #if !ARDUINO_USB_CDC_ON_BOOT
-                Serial.println("[!] SIRINE MENYALA! Valve Dikunci Tutup, Pintu Dibuka untuk Evakuasi!");
+                Serial.println("[!] SIRINE MENYALA! Valve Dikunci Tutup. Pintu tetap mengikuti occupancy PIR (unlock hanya jika ada orang terdeteksi 10 menit terakhir).");
 #else
                 Serial.println("[!] SIRINE MENYALA! Valve Dikunci Tutup!");
 #endif
                 global_alarm_until = millis() + 15000;
                 is_valve_locked = true;
                 actPrefs.putBool("valve_locked", true);
-#if !ARDUINO_USB_CDC_ON_BOOT
-                is_door_locked = false; // Fitur door lock khusus unit ESP32 classic
-#endif
+                // Door TIDAK dipaksa buka di sini - status pintu selalu murni mengikuti
+                // occupancy PIR (lihat main.cpp), termasuk saat alarm gempa aktif.
             } else {
                 Serial.println("[i] Epicenter terlalu jauh. Abaikan.");
             }
         } else if (doc["cmd"] == "cancel_alarm") {
-            // Dipakai dashboard saat tombol "Abaikan Peringatan" ditekan.
-            // Harus mematikan global_alarm_until SEKARANG JUGA - kalau tidak,
-            // loop utama akan terus memaksa is_door_locked=false selama sisa
-            // window 15 detik trigger_siren, menimpa balik perintah manual
-            // apapun yang mencoba mengunci pintu di tengah window itu.
+            // Dipakai dashboard saat tombol "Abaikan Peringatan" ditekan. Hard reset
+            // semua aktuator ke kondisi normal: valve terbuka, pintu terkunci - terlepas
+            // dari occupancy PIR sesaat sebelum ini. Harus mematikan global_alarm_until
+            // SEKARANG JUGA agar loop occupancy di main.cpp (yang hanya jalan selama
+            // is_global_alarm true) langsung berhenti dan tidak menimpa balik is_door_locked.
             Serial.println("[i] Perintah Sistem: ALARM DIBATALKAN. Mengembalikan aktuator ke kondisi normal.");
             global_alarm_until = 0;
             is_valve_locked = false;
@@ -197,6 +196,9 @@ void NetworkManager::mqttCallback(char* topic, byte* payload, unsigned int lengt
 #if !ARDUINO_USB_CDC_ON_BOOT
         // Command door lock: khusus unit ESP32 classic (esp32_wroom)
         } else if (doc["cmd"] == "lock_door") {
+            // Berlaku penuh di luar alarm gempa. Selama alarm gempa aktif, loop occupancy
+            // di main.cpp mengambil alih is_door_locked berdasarkan deteksi PIR 10 menit
+            // terakhir, jadi command manual ini bisa ditimpa balik saat itu.
             String target = doc["target_node"] | "all";
             String my_id = String(instance->_configMgr->config.node_id);
             if (target == "all" || target == my_id) {
