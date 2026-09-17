@@ -283,16 +283,16 @@ void NetworkManager::forcePublishStatus() {
     publishStatus("online", true, 0.0, "FLAT");
 }
 
-void NetworkManager::publishStatus(String status, bool sensor_ok, float tilt_angle, String pose) {
+void NetworkManager::publishStatus(String status, bool sensor_ok, float tilt_angle, String pose, bool motion_detected) {
     if (!mqtt.connected()) return;
     char willTopic[64];
     snprintf(willTopic, sizeof(willTopic), "lindu/sensor/%s/status", _configMgr->config.node_id);
-    
+
     char statusPayload[512];
-    snprintf(statusPayload, sizeof(statusPayload), 
-        "{\"status\":\"%s\",\"node_id\":\"%s\",\"lat\":%.4f,\"lon\":%.4f,\"pose\":\"%s\",\"tilt_angle\":%.1f,\"sensor_ok\":%s,\"fw_version\":\"%s\",\"ota_status\":\"%s\"}",
-        status.c_str(), _configMgr->config.node_id, _configMgr->config.lat, _configMgr->config.lon, pose.c_str(), tilt_angle, sensor_ok ? "true" : "false", CURRENT_VERSION, otaUpdater.ota_status.c_str());
-        
+    snprintf(statusPayload, sizeof(statusPayload),
+        "{\"status\":\"%s\",\"node_id\":\"%s\",\"lat\":%.4f,\"lon\":%.4f,\"pose\":\"%s\",\"tilt_angle\":%.1f,\"sensor_ok\":%s,\"fw_version\":\"%s\",\"ota_status\":\"%s\",\"motion_detected\":%s}",
+        status.c_str(), _configMgr->config.node_id, _configMgr->config.lat, _configMgr->config.lon, pose.c_str(), tilt_angle, sensor_ok ? "true" : "false", CURRENT_VERSION, otaUpdater.ota_status.c_str(), motion_detected ? "true" : "false");
+
     mqtt.publish(willTopic, statusPayload, true);
 }
 

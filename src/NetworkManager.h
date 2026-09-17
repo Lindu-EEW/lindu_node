@@ -10,7 +10,7 @@ public:
     void loop();
     bool isConnected();
     void forcePublishStatus();
-    void publishStatus(String status, bool sensor_ok, float tilt_angle, String pose); 
+    void publishStatus(String status, bool sensor_ok, float tilt_angle, String pose, bool motion_detected = false);
     void publishEvent(float pga, float sta_lta, int freq_hz, float ax, float ay, float az, unsigned long uptime_ms, double epoch, float lat, float lon, float temp, float pres);
     void publishLog(const char* message);
     
