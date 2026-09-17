@@ -161,6 +161,19 @@ void NetworkManager::mqttCallback(char* topic, byte* payload, unsigned int lengt
             } else {
                 Serial.println("[i] Epicenter terlalu jauh. Abaikan.");
             }
+        } else if (doc["cmd"] == "cancel_alarm") {
+            // Dipakai dashboard saat tombol "Abaikan Peringatan" ditekan.
+            // Harus mematikan global_alarm_until SEKARANG JUGA - kalau tidak,
+            // loop utama akan terus memaksa is_door_locked=false selama sisa
+            // window 15 detik trigger_siren, menimpa balik perintah manual
+            // apapun yang mencoba mengunci pintu di tengah window itu.
+            Serial.println("[i] Perintah Sistem: ALARM DIBATALKAN. Mengembalikan aktuator ke kondisi normal.");
+            global_alarm_until = 0;
+            is_valve_locked = false;
+            actPrefs.putBool("valve_locked", false);
+#if !ARDUINO_USB_CDC_ON_BOOT
+            is_door_locked = true;
+#endif
         } else if (doc["cmd"] == "enable_valve") {
             String target = doc["target_node"] | "all";
             String my_id = String(instance->_configMgr->config.node_id);
