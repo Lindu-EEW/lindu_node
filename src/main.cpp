@@ -48,6 +48,7 @@ bool is_rescue_mode = false;
     #define BUZZER_PIN 14
     #define RELAY_DOOR_PIN 25   // Relay CH1 -> Solenoid Door Lock 12V
     #define RELAY_VALVE_PIN 26  // Relay CH2 -> Solenoid Water/Gas Valve 12V
+    #define PIR_PIN 27          // Sensor PIR (HC-SR501/sejenis) - deteksi gerakan, OUTPUT sensor langsung ke GPIO (HIGH = ada gerakan)
     // Modul relay 2-channel (active LOW): LOW = relay ON (energized), HIGH = relay OFF
     #define RELAY_ON  LOW
     #define RELAY_OFF HIGH
@@ -103,6 +104,7 @@ Preferences actPrefs;
 #if !ARDUINO_USB_CDC_ON_BOOT
 bool is_door_locked = true; // Default: pintu terkunci (khusus unit ESP32 classic)
 #endif
+bool is_motion_detected = false; // Khusus unit ESP32 classic (sensor PIR belum dipasang di S3), selalu false di S3
 float local_latest_pga = 0.0;
 unsigned long local_alarm_until = 0;
 unsigned long identify_until = 0;
@@ -139,6 +141,7 @@ void networkTaskCode(void* parameter) {
     pinMode(RELAY_VALVE_PIN, OUTPUT);
     digitalWrite(RELAY_DOOR_PIN, is_door_locked ? RELAY_OFF : RELAY_ON);
     digitalWrite(RELAY_VALVE_PIN, is_valve_locked ? RELAY_OFF : RELAY_ON);
+    pinMode(PIR_PIN, INPUT); // Sensor PIR aktif men-drive HIGH/LOW sendiri, tidak butuh pull resistor internal
 #endif
 
     float breathAngle = 0;
@@ -151,7 +154,7 @@ void networkTaskCode(void* parameter) {
         // Heartbeat status setiap 10 detik
         static unsigned long last_status = 0;
         if (millis() - last_status >= 10000) {
-            networkMgr.publishStatus("online", sensorMgr.sensor_ok, sensorMgr.getTiltAngle(), sensorMgr.getPose());
+            networkMgr.publishStatus("online", sensorMgr.sensor_ok, sensorMgr.getTiltAngle(), sensorMgr.getPose(), is_motion_detected);
             last_status = millis();
         }
         
@@ -213,6 +216,9 @@ void networkTaskCode(void* parameter) {
                 digitalWrite(RELAY_DOOR_PIN, is_door_locked ? RELAY_OFF : RELAY_ON);
                 last_door_state = is_door_locked;
             }
+
+            // SENSOR PIR: Deteksi gerakan/orang di lokasi (HIGH = ada gerakan)
+            is_motion_detected = digitalRead(PIR_PIN) == HIGH;
 #endif
 
 
@@ -381,6 +387,7 @@ void setup() {
     pinMode(RELAY_VALVE_PIN, OUTPUT);
     digitalWrite(RELAY_DOOR_PIN, is_door_locked ? RELAY_OFF : RELAY_ON);
     digitalWrite(RELAY_VALVE_PIN, is_valve_locked ? RELAY_OFF : RELAY_ON);
+    pinMode(PIR_PIN, INPUT); // Sensor PIR aktif men-drive HIGH/LOW sendiri, tidak butuh pull resistor internal
 #endif
 
     pixels.setPixelColor(0, pixels.Color(0, 0, 40));
