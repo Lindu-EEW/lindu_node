@@ -30,6 +30,11 @@ bool is_rescue_mode = false;
     #define RGB_PIN 48
     #define SERVO_PIN 5
     #define BUZZER_PIN 6
+    // Buzzer S3 (hardware asli/lapangan): active-LOW
+    #define BUZZER_ON  LOW
+    #define BUZZER_OFF HIGH
+    #define BUZZER_ON_DUTY  128
+    #define BUZZER_OFF_DUTY 255
     #include <ESP32Servo.h>
     Servo myServo;
 #else
@@ -46,6 +51,13 @@ bool is_rescue_mode = false;
     // Modul relay 2-channel (active LOW): LOW = relay ON (energized), HIGH = relay OFF
     #define RELAY_ON  LOW
     #define RELAY_OFF HIGH
+    // Buzzer unit pengujian (classic/WROOM): terbukti active-HIGH secara fisik
+    // (dites 2026-09-17: mencabut sinyal GPIO14 membuat buzzer diam, artinya
+    // GPIO HIGH = nyala), KEBALIKAN dari asumsi lama "active-LOW".
+    #define BUZZER_ON  HIGH
+    #define BUZZER_OFF LOW
+    #define BUZZER_ON_DUTY  128
+    #define BUZZER_OFF_DUTY 0
 #endif
 
 #define BOOT_BUTTON_PIN 0
@@ -112,7 +124,7 @@ void networkTaskCode(void* parameter) {
     
     pixels.begin();
     pinMode(BUZZER_PIN, OUTPUT);
-    pinMode(BUZZER_PIN, OUTPUT); digitalWrite(BUZZER_PIN, HIGH); // ACTIVE LOW: HIGH artinya MATI
+    pinMode(BUZZER_PIN, OUTPUT); digitalWrite(BUZZER_PIN, BUZZER_OFF); // MATI (lihat definisi BUZZER_OFF per varian board)
 
 #if USE_SERVO_VALVE
     // ESP32-S3 PWM Timer Allocation untuk Servo (Hanya alokasi, tidak di-enable)
@@ -208,15 +220,15 @@ void networkTaskCode(void* parameter) {
                 // IDENTIFY MODE: Berkedip Putih
                 if ((millis() / 200) % 2 == 0) pixels.setPixelColor(0, pixels.Color(255, 255, 255));
                 else pixels.setPixelColor(0, pixels.Color(0, 0, 0));
-                digitalWrite(BUZZER_PIN, HIGH);
+                digitalWrite(BUZZER_PIN, BUZZER_OFF);
             } else if (is_global_alarm) {
                 // KONFIRMASI GEMPA (DARI SERVER): Berkedip Merah Cepat (Strobo) & Buzzer Menyala
                 if ((millis() / 100) % 2 == 0) {
                     pixels.setPixelColor(0, pixels.Color(255, 0, 0));
-                    analogWrite(BUZZER_PIN, 128); // 50% Duty Cycle (Max Volume Tone untuk Speaker)
+                    analogWrite(BUZZER_PIN, BUZZER_ON_DUTY); // 50% Duty Cycle (Max Volume Tone untuk Speaker)
                 } else {
                     pixels.setPixelColor(0, pixels.Color(0, 0, 0));
-                    analogWrite(BUZZER_PIN, 255); // ACTIVE LOW: 100% Duty Cycle (HIGH) artinya MATI
+                    analogWrite(BUZZER_PIN, BUZZER_OFF_DUTY); // MATI
                 }
             } else if (is_local_alarm) {
                 // DETEKSI GETARAN LOKAL (Menunggu Konfirmasi Node Lain): HANYA Berkedip Pink
@@ -224,11 +236,11 @@ void networkTaskCode(void* parameter) {
                     pixels.setPixelColor(0, pixels.Color(255, 20, 147)); // Hot Pink
                 } else {
                     pixels.setPixelColor(0, pixels.Color(0, 0, 0));
-                    digitalWrite(BUZZER_PIN, HIGH);
+                    digitalWrite(BUZZER_PIN, BUZZER_OFF);
                 }
             } else if (otaUpdater.ota_status == "DOWNLOADING_FIRMWARE" || otaUpdater.ota_status == "CHECKING_GITHUB") {
                 // MATIKAN BUZZER JIKA SEBELUMNYA NYALA
-                analogWrite(BUZZER_PIN, 255); digitalWrite(BUZZER_PIN, HIGH);
+                analogWrite(BUZZER_PIN, BUZZER_OFF_DUTY); digitalWrite(BUZZER_PIN, BUZZER_OFF);
                 
                 // OTA SEDANG MENGUNDUH: Berkedip CYAN (Biru Tosca) sangat cepat layaknya loading
                 if ((millis() / 80) % 2 == 0) pixels.setPixelColor(0, pixels.Color(0, 255, 255));
@@ -265,7 +277,7 @@ void networkTaskCode(void* parameter) {
         } else {
             if (is_buzzer_active) {
                 pinMode(BUZZER_PIN, OUTPUT);
-                digitalWrite(BUZZER_PIN, HIGH); // ACTIVE LOW: HIGH mematikan arus sepenuhnya
+                digitalWrite(BUZZER_PIN, BUZZER_OFF); // mematikan arus sepenuhnya
                 is_buzzer_active = false;
             }
         }
@@ -304,9 +316,9 @@ void networkTaskCode(void* parameter) {
                     if (beep_duration < 5) beep_duration = 5;     // Getaran pelan = 5ms (Tik kecil)
                     if (beep_duration > 100) beep_duration = 100; // Getaran keras = 100ms (Bip panjang/keras)
                     
-                    digitalWrite(BUZZER_PIN, LOW); // Active-Low ON
+                    digitalWrite(BUZZER_PIN, BUZZER_ON);
                     vTaskDelay(pdMS_TO_TICKS(beep_duration));
-                    digitalWrite(BUZZER_PIN, HIGH); // Active-Low OFF
+                    digitalWrite(BUZZER_PIN, BUZZER_OFF);
                 }
             }
             networkMgr.publishEvent(
@@ -354,7 +366,7 @@ void setup() {
     // Nyalakan LED biru saat sedang setup WiFi
     pixels.begin();
     pinMode(BUZZER_PIN, OUTPUT);
-    pinMode(BUZZER_PIN, OUTPUT); digitalWrite(BUZZER_PIN, HIGH); // ACTIVE LOW: HIGH artinya MATI
+    pinMode(BUZZER_PIN, OUTPUT); digitalWrite(BUZZER_PIN, BUZZER_OFF); // MATI (lihat definisi BUZZER_OFF per varian board)
 
 #if USE_SERVO_VALVE
     // ESP32-S3 PWM Timer Allocation untuk Servo (Hanya alokasi, tidak di-enable)
@@ -441,7 +453,7 @@ void loop() {
             boot_press_time = millis();
         } else if (millis() - boot_press_time > 5000) { // Tahan 5 detik
             Serial.println("\n[!] FACTORY RESET VIA TOMBOL BOOT DIMULAI!");
-            digitalWrite(BUZZER_PIN, LOW); // Bunyikan bel
+            digitalWrite(BUZZER_PIN, BUZZER_ON); // Bunyikan bel
             configMgr.resetConfig();
             Preferences prefs;
             prefs.begin("ota", false); prefs.clear(); prefs.end();
