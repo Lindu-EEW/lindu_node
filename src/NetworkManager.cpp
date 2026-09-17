@@ -216,6 +216,19 @@ void NetworkManager::mqttCallback(char* topic, byte* payload, unsigned int lengt
             } else {
                 Serial.println("[i] Perintah Unlock Door diabaikan (Bukan untuk Node ini).");
             }
+        } else if (doc["cmd"] == "reset_pir") {
+            // Tombol debug di Grafana: reset nilai sensor PIR, node dianggap TIDAK ADA
+            // gerakan/manusia sama sekali dalam 10 menit terakhir. Berguna untuk testing
+            // behavior door-lock saat alarm gempa tanpa perlu menunggu window 10 menit
+            // habis secara alami, atau saat sensor PIR fisik belum terpasang.
+            String target = doc["target_node"] | "all";
+            String my_id = String(instance->_configMgr->config.node_id);
+            if (target == "all" || target == my_id) {
+                Serial.println("[i] Perintah Sistem: Sensor PIR di-RESET (dianggap sepi 10 menit terakhir).");
+                last_motion_ms = 0;
+            } else {
+                Serial.println("[i] Perintah Reset PIR diabaikan (Bukan untuk Node ini).");
+            }
 #endif
         } else if (doc["cmd"] == "identify") {
             String target = doc["target_node"] | "all";
