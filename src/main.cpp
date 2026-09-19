@@ -218,6 +218,13 @@ void networkTaskCode(void* parameter) {
             if (is_motion_detected) {
                 last_motion_ms = millis();
             }
+            {
+                static bool last_pir_debug = false;
+                if (is_motion_detected != last_pir_debug) {
+                    Serial.printf("[PIR DEBUG] motion=%s\n", is_motion_detected ? "TERDETEKSI" : "tidak ada");
+                    last_pir_debug = is_motion_detected;
+                }
+            }
 
             // LOGIKA RELAY DOOR LOCK (Solenoid Door Lock 12V)
             // Default: ikut perintah manual (lock_door/unlock_door) atau cancel_alarm.
