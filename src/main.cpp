@@ -48,8 +48,8 @@ bool is_rescue_mode = false;
     #define BUZZER_PIN 14
     #define RELAY_DOOR_PIN 25   // Relay CH1 -> Solenoid Door Lock 12V
     #define RELAY_VALVE_PIN 26  // Relay CH2 -> Solenoid Water/Gas Valve 12V
-    #define LD2410_OUT_PIN 19   // Sensor HLK-LD2410C (radar presence, pengganti PIR HC-SR501 yang rusak) - HIGH = ada orang terdeteksi, INPUT_PULLDOWN agar aman saat sensor belum terpasang. Dipindah dari GPIO27 (bekas PIR) ke GPIO19 untuk isolasi masalah wiring/pin.
-    #define OCCUPANCY_WINDOW_MS 600000UL // 10 menit - jika ADA MINIMAL 1 deteksi presence (LD2410C) dalam window ini, pintu auto-unlock
+    #define PIR_PIN 19          // Sensor PIR (HC-SR501/sejenis) - OUTPUT sensor ke GPIO (HIGH = ada gerakan), INPUT_PULLDOWN agar aman saat sensor belum terpasang. Dipindah dari GPIO27 ke GPIO19 (uji coba sensor LD2410C sebelumnya, kembali pakai PIR).
+    #define OCCUPANCY_WINDOW_MS 600000UL // 10 menit - jika ADA MINIMAL 1 deteksi PIR dalam window ini, pintu auto-unlock
     // Modul relay 2-channel (active LOW): LOW = relay ON (energized), HIGH = relay OFF
     #define RELAY_ON  LOW
     #define RELAY_OFF HIGH
@@ -105,8 +105,8 @@ Preferences actPrefs;
 #if !ARDUINO_USB_CDC_ON_BOOT
 bool is_door_locked = true; // Default: pintu terkunci (khusus unit ESP32 classic)
 #endif
-bool is_motion_detected = false; // Khusus unit ESP32 classic (sensor HLK-LD2410C belum dipasang di S3), selalu false di S3
-unsigned long last_motion_ms = 0; // Timestamp deteksi presence (LD2410C) terakhir (khusus classic), dipakai untuk window occupancy 10 menit
+bool is_motion_detected = false; // Khusus unit ESP32 classic (sensor PIR belum dipasang di S3), selalu false di S3
+unsigned long last_motion_ms = 0; // Timestamp deteksi PIR terakhir (khusus classic), dipakai untuk window occupancy 10 menit
 float local_latest_pga = 0.0;
 unsigned long local_alarm_until = 0;
 unsigned long identify_until = 0;
@@ -143,11 +143,11 @@ void networkTaskCode(void* parameter) {
     pinMode(RELAY_VALVE_PIN, OUTPUT);
     digitalWrite(RELAY_DOOR_PIN, is_door_locked ? RELAY_OFF : RELAY_ON);
     digitalWrite(RELAY_VALVE_PIN, is_valve_locked ? RELAY_OFF : RELAY_ON);
-    // INPUT_PULLDOWN (bukan INPUT polos): kalau sensor LD2410C belum/tidak terpasang, GPIO
+    // INPUT_PULLDOWN (bukan INPUT polos): kalau sensor PIR belum/tidak terpasang, GPIO
     // mengambang bisa kebaca HIGH terus oleh noise, membuat occupancy logic mengira
     // ada gerakan terus-menerus dan pintu tidak pernah terkunci. Pull-down memaksa
     // default LOW (tidak ada gerakan) saat tidak ada sensor yang aktif men-drive pin.
-    pinMode(LD2410_OUT_PIN, INPUT_PULLDOWN);
+    pinMode(PIR_PIN, INPUT_PULLDOWN);
 #endif
 
     float breathAngle = 0;
@@ -212,28 +212,28 @@ void networkTaskCode(void* parameter) {
                 last_valve_state = is_valve_locked;
             }
 
-            // SENSOR PRESENCE (HLK-LD2410C, pengganti PIR HC-SR501): Deteksi orang di lokasi (HIGH = ada orang).
+            // SENSOR PIR: Deteksi gerakan/orang di lokasi (HIGH = ada gerakan).
             // Dibaca duluan agar window occupancy di bawah selalu pakai data terbaru.
-            is_motion_detected = digitalRead(LD2410_OUT_PIN) == HIGH;
+            is_motion_detected = digitalRead(PIR_PIN) == HIGH;
             if (is_motion_detected) {
                 last_motion_ms = millis();
             }
             {
-                static bool last_presence_debug = false;
-                if (is_motion_detected != last_presence_debug) {
-                    Serial.printf("[LD2410 DEBUG] presence=%s\n", is_motion_detected ? "TERDETEKSI" : "tidak ada");
-                    last_presence_debug = is_motion_detected;
+                static bool last_pir_debug = false;
+                if (is_motion_detected != last_pir_debug) {
+                    Serial.printf("[PIR DEBUG] motion=%s\n", is_motion_detected ? "TERDETEKSI" : "tidak ada");
+                    last_pir_debug = is_motion_detected;
                 }
             }
 
             // LOGIKA RELAY DOOR LOCK (Solenoid Door Lock 12V)
             // Default: ikut perintah manual (lock_door/unlock_door) atau cancel_alarm.
             // KHUSUS selama alarm gempa aktif (is_global_alarm): pintu HANYA unlock kalau
-            // ADA MINIMAL 1 deteksi presence (LD2410C) dalam 10 menit terakhir (asumsi ada orang di lokasi
+            // ADA MINIMAL 1 deteksi PIR dalam 10 menit terakhir (asumsi ada orang di lokasi
             // untuk evakuasi); kalau tidak ada yang terdeteksi, pintu tetap terkunci
             // walau alarm aktif. Dievaluasi ulang tiap tick SELAMA alarm masih berlangsung
             // (bukan cuma sekali di saat trigger) supaya tetap responsif kalau ada orang
-            // baru terdeteksi di tengah-tengah alarm. Di luar alarm, occupancy presence tidak
+            // baru terdeteksi di tengah-tengah alarm. Di luar alarm, occupancy PIR tidak
             // dicek sama sekali - status pintu murni ikut perintah manual/cancel_alarm.
             static bool last_door_state = is_door_locked;
             if (is_global_alarm) {
@@ -338,7 +338,7 @@ void networkTaskCode(void* parameter) {
                 // mengunci katup gas (global_alarm_until diset, sama seperti trigger_siren
                 // biasa). Pintu TIDAK dipaksa buka langsung di sini - begitu global_alarm_until
                 // aktif, loop occupancy di networkTaskCode yang menentukan: unlock hanya
-                // kalau LD2410C mendeteksi orang dalam 10 menit terakhir, sama seperti alarm biasa.
+                // kalau PIR mendeteksi orang dalam 10 menit terakhir, sama seperti alarm biasa.
                 // Ini adalah garis pertahanan terakhir saat infrastruktur internet runtuh.
                 if (!networkMgr.isConnected() && ev.pga > 0.60) {
                     Serial.println("[!!!] LONE WOLF MODE: Server offline + PGA EKSTREM! Mengambil alih kendali!");
@@ -423,11 +423,11 @@ void setup() {
     pinMode(RELAY_VALVE_PIN, OUTPUT);
     digitalWrite(RELAY_DOOR_PIN, is_door_locked ? RELAY_OFF : RELAY_ON);
     digitalWrite(RELAY_VALVE_PIN, is_valve_locked ? RELAY_OFF : RELAY_ON);
-    // INPUT_PULLDOWN (bukan INPUT polos): kalau sensor LD2410C belum/tidak terpasang, GPIO
+    // INPUT_PULLDOWN (bukan INPUT polos): kalau sensor PIR belum/tidak terpasang, GPIO
     // mengambang bisa kebaca HIGH terus oleh noise, membuat occupancy logic mengira
     // ada gerakan terus-menerus dan pintu tidak pernah terkunci. Pull-down memaksa
     // default LOW (tidak ada gerakan) saat tidak ada sensor yang aktif men-drive pin.
-    pinMode(LD2410_OUT_PIN, INPUT_PULLDOWN);
+    pinMode(PIR_PIN, INPUT_PULLDOWN);
 #endif
 
     pixels.setPixelColor(0, pixels.Color(0, 0, 40));
