@@ -21,7 +21,7 @@ struct SensorEvent {
     float pressure;
 };
 
-#define GAS_LEAK_THRESHOLD 3700
+#define GAS_LEAK_THRESHOLD 2000
 #define GAS_WARMUP_MS 30000 // MQ-2 butuh waktu pemanasan sebelum pembacaan stabil
 
 class SensorManager {
