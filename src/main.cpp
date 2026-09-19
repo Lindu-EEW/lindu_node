@@ -251,6 +251,10 @@ void networkTaskCode(void* parameter) {
                 // IDENTIFY MODE: Berkedip Putih
                 if ((millis() / 200) % 2 == 0) pixels.setPixelColor(0, pixels.Color(255, 255, 255));
                 else pixels.setPixelColor(0, pixels.Color(0, 0, 0));
+                // analogWrite (LEDC) dulu, baru digitalWrite - digitalWrite saja TIDAK memutus
+                // channel PWM yang sudah dipakai analogWrite (mis. saat alarm sebelumnya), jadi
+                // buzzer bisa nyangkut bunyi panjang terus-menerus kalau cuma digitalWrite.
+                analogWrite(BUZZER_PIN, BUZZER_OFF_DUTY);
                 digitalWrite(BUZZER_PIN, BUZZER_OFF);
             } else if (is_global_alarm) {
                 // KONFIRMASI GEMPA (DARI SERVER): Berkedip Merah Cepat (Strobo) & Buzzer Menyala
@@ -278,6 +282,11 @@ void networkTaskCode(void* parameter) {
                     pixels.setPixelColor(0, pixels.Color(255, 20, 147)); // Hot Pink
                 } else {
                     pixels.setPixelColor(0, pixels.Color(0, 0, 0));
+                    // Wajib analogWrite juga: kalau transisi ini datang tepat setelah alarm
+                    // gempa/gas (yang menyalakan buzzer via analogWrite) baru dibatalkan,
+                    // digitalWrite saja tidak memutus PWM LEDC yang masih aktif di duty terakhir
+                    // - itu penyebab buzzer nyangkut bunyi panjang terus-menerus.
+                    analogWrite(BUZZER_PIN, BUZZER_OFF_DUTY);
                     digitalWrite(BUZZER_PIN, BUZZER_OFF);
                 }
             } else if (otaUpdater.ota_status == "DOWNLOADING_FIRMWARE" || otaUpdater.ota_status == "CHECKING_GITHUB") {
@@ -318,6 +327,9 @@ void networkTaskCode(void* parameter) {
             is_buzzer_active = true;
         } else {
             if (is_buzzer_active) {
+                // analogWrite dulu untuk memutus PWM LEDC (lihat catatan di cabang is_local_alarm
+                // di atas), baru pinMode/digitalWrite untuk memastikan pin benar-benar diam.
+                analogWrite(BUZZER_PIN, BUZZER_OFF_DUTY);
                 pinMode(BUZZER_PIN, OUTPUT);
                 digitalWrite(BUZZER_PIN, BUZZER_OFF); // mematikan arus sepenuhnya
                 is_buzzer_active = false;
