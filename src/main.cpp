@@ -48,7 +48,7 @@ bool is_rescue_mode = false;
     #define BUZZER_PIN 14
     #define RELAY_DOOR_PIN 25   // Relay CH1 -> Solenoid Door Lock 12V
     #define RELAY_VALVE_PIN 26  // Relay CH2 -> Solenoid Water/Gas Valve 12V
-    #define LD2410_OUT_PIN 27   // Sensor HLK-LD2410C (radar presence, pengganti PIR HC-SR501 yang rusak) - pin OUT dipakai persis seperti PIR lama (HIGH = ada orang terdeteksi), INPUT_PULLDOWN agar aman saat sensor belum terpasang
+    #define LD2410_OUT_PIN 19   // Sensor HLK-LD2410C (radar presence, pengganti PIR HC-SR501 yang rusak) - HIGH = ada orang terdeteksi, INPUT_PULLDOWN agar aman saat sensor belum terpasang. Dipindah dari GPIO27 (bekas PIR) ke GPIO19 untuk isolasi masalah wiring/pin.
     #define OCCUPANCY_WINDOW_MS 600000UL // 10 menit - jika ADA MINIMAL 1 deteksi presence (LD2410C) dalam window ini, pintu auto-unlock
     // Modul relay 2-channel (active LOW): LOW = relay ON (energized), HIGH = relay OFF
     #define RELAY_ON  LOW
