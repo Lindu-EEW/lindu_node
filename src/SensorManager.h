@@ -3,10 +3,17 @@
 
 #include <Arduino.h>
 #include <Adafruit_LSM6DS3.h>
+#include <Adafruit_MPU6050.h>
 #include <Adafruit_BME280.h>
 #include <Adafruit_BMP280.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
+
+enum AccelType {
+    ACCEL_NONE,
+    ACCEL_LSM6DS3,
+    ACCEL_MPU6050
+};
 
 struct SensorEvent {
     float pga;
@@ -31,6 +38,7 @@ public:
 
     bool selfTest();
     bool sensor_ok = false;
+    AccelType accel_type = ACCEL_NONE;
     bool bmp_ok = false;
     bool bme_ok = false;
     bool gas_leak_detected = false;
@@ -44,6 +52,7 @@ private:
     unsigned long _last_gas_read = 0;
     unsigned long _gas_boot_time = 0;
     Adafruit_LSM6DS3 _lsm6ds3;
+    Adafruit_MPU6050 _mpu6050;
     Adafruit_BME280 _bme;
     Adafruit_BMP280* _bmp;
     

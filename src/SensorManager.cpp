@@ -34,8 +34,13 @@ void SensorManager::begin(QueueHandle_t queue) {
 
   sensor_ok = selfTest();
   if (sensor_ok) {
-    _lsm6ds3.setAccelRange(LSM6DS_ACCEL_RANGE_8_G);
-    _lsm6ds3.setAccelDataRate(LSM6DS_RATE_1_66K_HZ);
+    if (accel_type == ACCEL_LSM6DS3) {
+      _lsm6ds3.setAccelRange(LSM6DS_ACCEL_RANGE_8_G);
+      _lsm6ds3.setAccelDataRate(LSM6DS_RATE_1_66K_HZ);
+    } else if (accel_type == ACCEL_MPU6050) {
+      _mpu6050.setAccelerometerRange(MPU6050_RANGE_8_G);
+      _mpu6050.setFilterBandwidth(MPU6050_BAND_44_HZ);
+    }
   }
 
   // PROBE I2C DULU UNTUK MENCEGAH HANG
@@ -51,7 +56,16 @@ void SensorManager::begin(QueueHandle_t queue) {
 }
 
 bool SensorManager::selfTest() {
-  return _lsm6ds3.begin_I2C(0x6A, &Wire) || _lsm6ds3.begin_I2C(0x6B, &Wire);
+  if (_lsm6ds3.begin_I2C(0x6A, &Wire) || _lsm6ds3.begin_I2C(0x6B, &Wire)) {
+    accel_type = ACCEL_LSM6DS3;
+    return true;
+  }
+  if (_mpu6050.begin(0x68, &Wire) || _mpu6050.begin(0x69, &Wire)) {
+    accel_type = ACCEL_MPU6050;
+    return true;
+  }
+  accel_type = ACCEL_NONE;
+  return false;
 }
 
 // Sensor gas MQ-2 diaktifkan lintas platform.
@@ -97,8 +111,13 @@ readGasSensor();
   if (!sensor_ok && millis() - last_accel_check > 5000) {
     sensor_ok = selfTest();
     if (sensor_ok) {
-      _lsm6ds3.setAccelRange(LSM6DS_ACCEL_RANGE_8_G);
-      _lsm6ds3.setAccelDataRate(LSM6DS_RATE_1_66K_HZ);
+      if (accel_type == ACCEL_LSM6DS3) {
+        _lsm6ds3.setAccelRange(LSM6DS_ACCEL_RANGE_8_G);
+        _lsm6ds3.setAccelDataRate(LSM6DS_RATE_1_66K_HZ);
+      } else if (accel_type == ACCEL_MPU6050) {
+        _mpu6050.setAccelerometerRange(MPU6050_RANGE_8_G);
+        _mpu6050.setFilterBandwidth(MPU6050_BAND_44_HZ);
+      }
     }
     last_accel_check = millis();
   }
@@ -115,7 +134,11 @@ readGasSensor();
 
   if (sensor_ok) {
     sensors_event_t accel, gyro, temp_accel;
-    _lsm6ds3.getEvent(&accel, &gyro, &temp_accel);
+    if (accel_type == ACCEL_LSM6DS3) {
+      _lsm6ds3.getEvent(&accel, &gyro, &temp_accel);
+    } else if (accel_type == ACCEL_MPU6050) {
+      _mpu6050.getEvent(&accel, &gyro, &temp_accel);
+    }
 
     static bool is_first_read = true;
     if (is_first_read) {

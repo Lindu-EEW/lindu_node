@@ -54,15 +54,15 @@ bool ConfigManager::startCaptivePortal() {
 
 #if ARDUINO_USB_CDC_ON_BOOT
     // ESP32-S3 Variant
-    html += "<tr><td>Sensor Getar (LSM6DS3)</td><td>SDA: <b>10</b>, SCL: <b>11</b></td></tr>";
+    html += "<tr><td>Sensor Getar (LSM6DS3 / MPU-6050)</td><td>SDA: <b>12</b>, SCL: <b>13</b></td></tr>";
     html += "<tr><td>Sensor Suhu/Cuaca (BME280)</td><td>SDA: <b>10</b>, SCL: <b>11</b></td></tr>";
     html += "<tr><td>Lampu Status (WS2812)</td><td>Pin <b>48</b></td></tr>";
     html += "<tr><td>Buzzer Sirine (Aktif Low)</td><td>Pin <b>6</b></td></tr>";
     html += "<tr><td>Motor Servo Katup Gas</td><td>Pin <b>5</b></td></tr>";
 #else
     // ESP32 Classic/WROOM Variant
-    html += "<tr><td>Sensor Getar (LSM6DS3)</td><td>SDA: <b>18</b>, SCL: <b>19</b></td></tr>";
-    html += "<tr><td>Sensor Suhu/Cuaca (BME280)</td><td>SDA: <b>21</b>, SCL: <b>22</b></td></tr>";
+    html += "<tr><td>Sensor Getar (LSM6DS3 / MPU-6050)</td><td>SDA: <b>21</b>, SCL: <b>22</b></td></tr>";
+    html += "<tr><td>Sensor Suhu/Cuaca (BME280)</td><td>SDA: <b>32</b>, SCL: <b>33</b></td></tr>";
     html += "<tr><td>Sensor Gas Bocor (MQ-2)</td><td>Analog <b>34</b></td></tr>";
     html += "<tr><td>Lampu Status (WS2812)</td><td>Pin <b>4</b></td></tr>";
     html += "<tr><td>Buzzer Sirine (Aktif Low)</td><td>Pin <b>14</b></td></tr>";
