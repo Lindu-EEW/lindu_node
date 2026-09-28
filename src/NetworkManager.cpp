@@ -2,7 +2,7 @@
 #include "OTAUpdater.h"
 #include "NetworkManager.h"
 
-bool remote_debug_enabled = false;
+bool remote_debug_enabled = true;
 
 #include <Preferences.h>
 extern Preferences actPrefs;

@@ -12,7 +12,8 @@
 enum AccelType {
     ACCEL_NONE,
     ACCEL_LSM6DS3,
-    ACCEL_MPU6050
+    ACCEL_MPU6050,
+    ACCEL_MPU_DIRECT
 };
 
 struct SensorEvent {
@@ -53,6 +54,7 @@ private:
     unsigned long _gas_boot_time = 0;
     Adafruit_LSM6DS3 _lsm6ds3;
     Adafruit_MPU6050 _mpu6050;
+    uint8_t _mpu_addr = 0x68;
     Adafruit_BME280 _bme;
     Adafruit_BMP280* _bmp;
     
