@@ -15,8 +15,8 @@ void ConfigManager::loadConfig() {
     String id = prefs.getString("node_id", defaultId);
     strlcpy(config.node_id, id.c_str(), sizeof(config.node_id));
     
-    config.lat = prefs.getFloat("lat", 0.0);
-    config.lon = prefs.getFloat("lon", 0.0);
+    config.lat = prefs.getFloat("lat", 35.5402);
+    config.lon = prefs.getFloat("lon", 139.5178);
     
     String srv = prefs.getString("mqtt_srv", "192.168.68.105");
     strlcpy(config.mqtt_server, srv.c_str(), sizeof(config.mqtt_server));

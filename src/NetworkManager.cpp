@@ -129,7 +129,9 @@ void NetworkManager::mqttCallback(char* topic, byte* payload, unsigned int lengt
     String msg;
     for (int i = 0; i < length; i++) msg += (char)payload[i];
     
-    if (String(topic) == "lindu/actuator/cmd/all") {
+    String t = String(topic);
+    String my_id = String(instance->_configMgr->config.node_id);
+    if (t == "lindu/actuator/cmd/all" || t == "lindu/sensor/cmd/all" || t == "lindu/sensor/cmd/" + my_id) {
         StaticJsonDocument<1024> doc;
         DeserializationError error = deserializeJson(doc, msg);
         if (error) return;
