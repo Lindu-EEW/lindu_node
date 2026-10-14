@@ -232,6 +232,22 @@ void NetworkManager::mqttCallback(char* topic, byte* payload, unsigned int lengt
                 Serial.println("[i] Perintah Reset PIR diabaikan (Bukan untuk Node ini).");
             }
 #endif
+        } else if (doc["cmd"] == "enable_debug" || doc["cmd"] == "disable_debug") {
+            // Tombol ENABLE/DISABLE DEBUG LOG di Grafana. Tidak disimpan ke NVS:
+            // setelah reboot kembali ke default (true).
+            String target = doc["target_node"] | "all";
+            String my_id = String(instance->_configMgr->config.node_id);
+            if (target == "all" || target == my_id) {
+                bool enable = (doc["cmd"] == "enable_debug");
+                if (enable) {
+                    remote_debug_enabled = true;
+                    instance->publishLog("Debug log DIAKTIFKAN.");
+                } else {
+                    instance->publishLog("Debug log DIMATIKAN.");
+                    remote_debug_enabled = false;
+                }
+                Serial.printf("[i] Perintah Sistem: Debug log %s.\n", enable ? "ENABLE" : "DISABLE");
+            }
         } else if (doc["cmd"] == "identify") {
             String target = doc["target_node"] | "all";
             String my_id = String(instance->_configMgr->config.node_id);
@@ -315,7 +331,7 @@ void NetworkManager::publishStatus(String status, bool sensor_ok, float tilt_ang
 
 void NetworkManager::publishLog(const char* message) {
     if (!mqtt.connected()) return;
-    if (!remote_debug_enabled) return; // Hanya kirim log jika user menekan ENABLE DEBUG di Grafana
+    if (!remote_debug_enabled) return; // Default aktif; dimatikan/diaktifkan lewat tombol DISABLE/ENABLE DEBUG di Grafana
 
     char topic[64];
     snprintf(topic, sizeof(topic), "lindu/sensor/%s/log", _configMgr->config.node_id);
