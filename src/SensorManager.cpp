@@ -296,8 +296,8 @@ readGasSensor();
   }
 
   // SELALU KIRIM DATA SETIAP 1 DETIK
-      // LOGIKA ZERO-DELAY
-    bool is_earthquake_spike = (pga > 0.12); 
+  // LOGIKA ZERO-DELAY: Hanya aktifkan pengiriman cepat jika getaran berada pada spektrum frekuensi gempa (<= 8 Hz)
+  bool is_earthquake_spike = (pga > 0.12 && (_current_hz == 0 || _current_hz <= 8)); 
     
     if ( (is_earthquake_spike && millis() - _telemetry_last_send >= 100) || (millis() - _telemetry_last_send >= 1000) ) {
     SensorEvent ev = {pga,   ratio, _current_hz, rms,  dyn_x,

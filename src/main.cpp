@@ -341,18 +341,18 @@ void networkTaskCode(void* parameter) {
         // Cek apakah ada data sensor di antrean (Non-Blocking)
         if (xQueueReceive(eventQueue, &ev, 0) == pdTRUE) {
             local_latest_pga = ev.pga;
-            if (ev.pga > 0.12) {
+            
+            // Filter Seismik: Gempa bumi tektonik riil dominan pada frekuensi rendah (<= 8 Hz).
+            // Hentakan langkah kaki, pintu dibanting, atau meja tersenggol berfrekuensi tinggi (> 10-35 Hz)
+            // dibuang agar tidak membunyikan buzzer atau memicu false alarm lokal.
+            bool is_seismic_frequency = (ev.freq_hz == 0 || ev.freq_hz <= 8);
+
+            if (ev.pga > 0.12 && is_seismic_frequency) {
                 local_alarm_until = millis() + 5000; // Tahan warna pink selama 5 detik
                 
                 // ========== OFFLINE FAIL-SAFE (LONE WOLF MODE) ==========
-                // Jika MQTT server mati DAN getaran AMAT SANGAT BRUTAL (PGA > 0.60G),
-                // ESP32 mengambil alih kekuasaan mutlak: langsung membunyikan sirine dan
-                // mengunci katup gas (global_alarm_until diset, sama seperti trigger_siren
-                // biasa). Pintu TIDAK dipaksa buka langsung di sini - begitu global_alarm_until
-                // aktif, loop occupancy di networkTaskCode yang menentukan: unlock hanya
-                // kalau PIR mendeteksi orang dalam 10 menit terakhir, sama seperti alarm biasa.
-                // Ini adalah garis pertahanan terakhir saat infrastruktur internet runtuh.
-                if (!networkMgr.isConnected() && ev.pga > 0.60) {
+                // Jika MQTT server mati DAN getaran AMAT SANGAT BRUTAL (PGA > 0.60G) dengan spektrum seismik valid
+                if (!networkMgr.isConnected() && ev.pga > 0.60 && is_seismic_frequency) {
                     Serial.println("[!!!] LONE WOLF MODE: Server offline + PGA EKSTREM! Mengambil alih kendali!");
                     networkMgr.publishLog("LONE WOLF MODE DIINTIASI! Server Offline & PGA Ekstrem.");
                     global_alarm_until = millis() + 15000; // Sirine merah 15 detik
