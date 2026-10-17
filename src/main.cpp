@@ -110,6 +110,7 @@ unsigned long last_motion_ms = 0; // Timestamp deteksi PIR terakhir (khusus clas
 float local_latest_pga = 0.0;
 unsigned long local_alarm_until = 0;
 unsigned long identify_until = 0;
+bool bedroom_stealth_mode = false;
 TaskHandle_t networkTaskHandle;
 
 // Helper: Ambil Waktu Epoch NTP
@@ -171,12 +172,19 @@ void networkTaskCode(void* parameter) {
         // Animasi LED Cerdas (Sesuai Status Sensor & WiFi)
         if (WiFi.status() == WL_CONNECTED && networkMgr.isConnected()) {
             otaUpdater.loop();
-            // Denyut lambat (Slow Calm Breathing): ~6.3 detik per siklus pernafasan
-            breathAngle += 0.02;
-            if (breathAngle > 2 * PI) breathAngle -= 2 * PI;
-            // Mode "Kamar Tidur": Diturunkan dari pengali 20.0 menjadi 3.0 (Kecerahan max hanya 6/255)
-            // LED akan bernafas dengan sangat, sangat redup dan tidak menyilaukan saat lampu kamar dimatikan.
-            int brightness = (sin(breathAngle) + 1.0) * 3.0; 
+            
+            // Mode Kamar Tidur (Bedroom Sleep Beat):
+            // - Jika bedroom_stealth_mode aktif -> Lampu 100% MATI (Gelap gulita di kamar tidur)
+            // - Jika normal -> Siklus denyut lambat 8.0 detik dengan 6.4 detik OFF-BEAT TOTAL
+            //   (Hanya menyala sangat redup 1.6 detik maks 3/255, lalu 6.4 detik mati total)
+            int brightness = 0;
+            if (!bedroom_stealth_mode) {
+                unsigned long cycle_ms = millis() % 8000;
+                if (cycle_ms < 1600) {
+                    float pulse_phase = (float)cycle_ms / 1600.0f;
+                    brightness = (int)(sin(pulse_phase * PI) * 3.0f);
+                }
+            }
             
             bool hw611_ok = sensorMgr.bme_ok || sensorMgr.bmp_ok;
             
@@ -414,6 +422,17 @@ void setup() {
             tempPrefs.end();
         }
     }
+
+    // 0.1 Inisialisasi NVS Preferences aktuator & preferensi lampu kamar tidur
+    actPrefs.begin("act", false);
+    is_valve_locked = actPrefs.getBool("valve_locked", false);
+    bedroom_stealth_mode = actPrefs.getBool("stealth_led", false);
+
+#if !ARDUINO_USB_CDC_ON_BOOT
+    // Matikan paksa LED onboard GPIO 2 (LED biru DevKit WROOM) agar kamar tidur tidak silau
+    pinMode(2, OUTPUT);
+    digitalWrite(2, LOW);
+#endif
 
     // 1. Muat Konfigurasi (EEPROM) & WiFi Captive Portal
     configMgr.begin();

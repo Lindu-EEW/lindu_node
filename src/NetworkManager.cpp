@@ -16,6 +16,7 @@ extern SensorManager sensorMgr;
 #include <math.h>
 
 extern unsigned long identify_until;
+extern bool bedroom_stealth_mode;
 
 WiFiClient espClient;
 PubSubClient mqtt(espClient);
@@ -254,6 +255,17 @@ void NetworkManager::mqttCallback(char* topic, byte* payload, unsigned int lengt
             if (target == "all" || target == my_id) {
                 identify_until = millis() + 10000; // 10 detik
                 Serial.println("[i] Perintah Sistem: IDENTIFY. Lampu berkedip putih.");
+            }
+        } else if (doc["cmd"] == "set_bedroom_mode" || doc["cmd"] == "stealth_led") {
+            String target = doc["target_node"] | "all";
+            String my_id = String(instance->_configMgr->config.node_id);
+            if (target == "all" || target == my_id) {
+                bool enable = doc["enabled"] | doc["state"] | true;
+                bedroom_stealth_mode = enable;
+                actPrefs.putBool("stealth_led", enable);
+                String logMsg = String("Bedroom Stealth LED: ") + (enable ? "AKTIF (Mati Total)" : "NONAKTIF (Denyut Lambat)");
+                instance->publishLog(logMsg.c_str());
+                Serial.printf("[i] Perintah Sistem: Bedroom Stealth LED %s.\n", enable ? "AKTIF" : "NONAKTIF");
             }
         } else if (doc["cmd"] == "set_location") {
             String target = doc["target_node"] | "all";
