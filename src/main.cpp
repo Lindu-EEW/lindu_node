@@ -171,7 +171,8 @@ void networkTaskCode(void* parameter) {
         // Animasi LED Cerdas (Sesuai Status Sensor & WiFi)
         if (WiFi.status() == WL_CONNECTED && networkMgr.isConnected()) {
             otaUpdater.loop();
-            breathAngle += 0.05;
+            // Denyut lambat (Slow Calm Breathing): ~6.3 detik per siklus pernafasan
+            breathAngle += 0.02;
             if (breathAngle > 2 * PI) breathAngle -= 2 * PI;
             // Mode "Kamar Tidur": Diturunkan dari pengali 20.0 menjadi 3.0 (Kecerahan max hanya 6/255)
             // LED akan bernafas dengan sangat, sangat redup dan tidak menyilaukan saat lampu kamar dimatikan.
