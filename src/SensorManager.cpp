@@ -57,10 +57,10 @@ void SensorManager::begin(QueueHandle_t queue) {
   if (sensor_ok) {
     if (accel_type == ACCEL_LSM6DS3) {
       _lsm6ds3.setAccelRange(LSM6DS_ACCEL_RANGE_8_G);
-      _lsm6ds3.setAccelDataRate(LSM6DS_RATE_1_66K_HZ);
+      _lsm6ds3.setAccelDataRate(LSM6DS_RATE_104_HZ); // Anti-aliasing filter matched to 100Hz sampling
     } else if (accel_type == ACCEL_MPU6050) {
       _mpu6050.setAccelerometerRange(MPU6050_RANGE_8_G);
-      _mpu6050.setFilterBandwidth(MPU6050_BAND_44_HZ);
+      _mpu6050.setFilterBandwidth(MPU6050_BAND_10_HZ); // Hardware DLPF ~10Hz (Seismic bandwidth 0.5-8Hz)
     }
   }
 
@@ -124,10 +124,10 @@ bool SensorManager::selfTest() {
           Wire.write(0x00);
           Wire.endTransmission();
 
-          // CONFIG = 0x03 (DLPF ~44Hz)
+          // CONFIG = 0x05 (DLPF ~10Hz, delay 13.8ms untuk eliminasi noise frekuensi tinggi)
           Wire.beginTransmission(addr);
           Wire.write(0x1A);
-          Wire.write(0x03);
+          Wire.write(0x05);
           Wire.endTransmission();
 
           // ACCEL_CONFIG = 0x10 (±8G range)
@@ -194,10 +194,10 @@ readGasSensor();
     if (sensor_ok) {
       if (accel_type == ACCEL_LSM6DS3) {
         _lsm6ds3.setAccelRange(LSM6DS_ACCEL_RANGE_8_G);
-        _lsm6ds3.setAccelDataRate(LSM6DS_RATE_1_66K_HZ);
+        _lsm6ds3.setAccelDataRate(LSM6DS_RATE_104_HZ); // Anti-aliasing 104Hz
       } else if (accel_type == ACCEL_MPU6050) {
         _mpu6050.setAccelerometerRange(MPU6050_RANGE_8_G);
-        _mpu6050.setFilterBandwidth(MPU6050_BAND_44_HZ);
+        _mpu6050.setFilterBandwidth(MPU6050_BAND_10_HZ); // Hardware DLPF ~10Hz
       }
       char ok_msg[64];
       snprintf(ok_msg, sizeof(ok_msg), "[I2C OK] Accel terdeteksi (type=%d, addr=0x%02X)", accel_type, _mpu_addr);
@@ -244,41 +244,56 @@ readGasSensor();
       }
     }
 
-    static bool is_first_read = true;
-    if (is_first_read) {
-      _dc_x = accel.acceleration.x;
-      _dc_y = accel.acceleration.y;
-      _dc_z = accel.acceleration.z;
-      is_first_read = false;
-      _is_calibrated = true;
+    // Multi-sample calibration saat booting (300 sampel @ 100Hz = 3.0 detik)
+    if (!_is_calibrated) {
+      _calib_sum_x += accel.acceleration.x;
+      _calib_sum_y += accel.acceleration.y;
+      _calib_sum_z += accel.acceleration.z;
+      _calib_samples_count++;
+
+      if (_calib_samples_count >= CALIBRATION_SAMPLE_TARGET) {
+        _dc_x = _calib_sum_x / (float)CALIBRATION_SAMPLE_TARGET;
+        _dc_y = _calib_sum_y / (float)CALIBRATION_SAMPLE_TARGET;
+        _dc_z = _calib_sum_z / (float)CALIBRATION_SAMPLE_TARGET;
+        _is_calibrated = true;
+        Serial.printf("[SENSOR] Kalibrasi Selesai! Baseline DC: (%.3f, %.3f, %.3f) m/s^2 (%d sampel)\n",
+                      _dc_x, _dc_y, _dc_z, CALIBRATION_SAMPLE_TARGET);
+      } else {
+        // Tahan pengiriman data dan perhitungan PGA selama 3 detik kalibrasi awal
+        return;
+      }
     }
 
+    // Adaptasi lambat DC offset (thermal drift & rotasi lambat)
     float alpha_dc = 0.002;
     _dc_x = (accel.acceleration.x * alpha_dc) + (_dc_x * (1.0 - alpha_dc));
     _dc_y = (accel.acceleration.y * alpha_dc) + (_dc_y * (1.0 - alpha_dc));
     _dc_z = (accel.acceleration.z * alpha_dc) + (_dc_z * (1.0 - alpha_dc));
 
-    if (_is_calibrated) {
-      dyn_x = accel.acceleration.x - _dc_x;
-      dyn_y = accel.acceleration.y - _dc_y;
-      dyn_z = accel.acceleration.z - _dc_z;
+    dyn_x = accel.acceleration.x - _dc_x;
+    dyn_y = accel.acceleration.y - _dc_y;
+    dyn_z = accel.acceleration.z - _dc_z;
 
-      if ((dyn_z > 0 && _last_dyn_z <= 0) || (dyn_z < 0 && _last_dyn_z >= 0))
-        _zcr_count++;
-      _last_dyn_z = dyn_z;
+    if ((dyn_z > 0 && _last_dyn_z <= 0) || (dyn_z < 0 && _last_dyn_z >= 0))
+      _zcr_count++;
+    _last_dyn_z = dyn_z;
 
-      if (millis() - _zcr_timer >= 1000) {
-        _current_hz = _zcr_count / 2;
-        _zcr_count = 0;
-        _zcr_timer = millis();
-      }
+    if (millis() - _zcr_timer >= 1000) {
+      _current_hz = _zcr_count / 2;
+      _zcr_count = 0;
+      _zcr_timer = millis();
+    }
 
-      pga = sqrt(dyn_x * dyn_x + dyn_y * dyn_y + dyn_z * dyn_z) / 9.81;
-      float energy = pga * pga;
-      rms = sqrt((dyn_x * dyn_x + dyn_y * dyn_y + dyn_z * dyn_z) / 3.0) / 9.81;
+    pga = sqrt(dyn_x * dyn_x + dyn_y * dyn_y + dyn_z * dyn_z) / 9.81;
+    float energy = pga * pga;
+    rms = sqrt((dyn_x * dyn_x + dyn_y * dyn_y + dyn_z * dyn_z) / 3.0) / 9.81;
 
-      _sta_ema = (energy * 0.1) + (_sta_ema * 0.9);
-      _lta_ema = (energy * 0.005) + (_lta_ema * 0.995);
+    _sta_ema = (energy * 0.1) + (_sta_ema * 0.9);
+    _lta_ema = (energy * 0.005) + (_lta_ema * 0.995);
+
+    // Lacak noise floor saat kondisi tenang (pga < 0.04g)
+    if (pga < 0.04f) {
+      _noise_floor_ema = (pga * 0.005f) + (_noise_floor_ema * 0.995f);
     }
   }
 

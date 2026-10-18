@@ -47,6 +47,8 @@ public:
     int  gas_raw_value = 0;
     String getPose();
     float getTiltAngle();
+    float getNoiseFloor() const { return _noise_floor_ema; }
+    bool isCalibrated() const { return _is_calibrated; }
 
 private:
     void readGasSensor();
@@ -64,6 +66,14 @@ private:
     float _dc_y = 0.0;
     float _dc_z = 0.0;
     bool  _is_calibrated = false;
+    
+    // Kalibrasi bertahap multi-sampel saat boot (300 sampel @ 100Hz = 3.0 detik)
+    static const int CALIBRATION_SAMPLE_TARGET = 300;
+    int   _calib_samples_count = 0;
+    float _calib_sum_x = 0.0f;
+    float _calib_sum_y = 0.0f;
+    float _calib_sum_z = 0.0f;
+    float _noise_floor_ema = 0.005f;
     
     int _zcr_count = 0;
     float _last_dyn_z = 0.0;
