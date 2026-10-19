@@ -389,7 +389,8 @@ void networkTaskCode(void* parameter) {
                 ev.accel_x, ev.accel_y, ev.accel_z,
                 ev.uptime_ms, getEpochTime(),
                 configMgr.config.lat, configMgr.config.lon,
-                ev.temperature, ev.pressure
+                ev.temperature, ev.pressure,
+                ev.ml_prob, ev.ml_agree
             );
         }
         

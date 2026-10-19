@@ -1,5 +1,6 @@
 #include "SensorManager.h"
 #include "NetworkManager.h"
+#include "lindu_ml_model.h"
 
 extern NetworkManager networkMgr;
 extern bool is_valve_locked;
@@ -310,18 +311,41 @@ readGasSensor();
     pres = _bmp->readPressure() / 100.0F;
   }
 
-  // SELALU KIRIM DATA SETIAP 1 DETIK
-  // LOGIKA ZERO-DELAY: Hanya aktifkan pengiriman cepat jika getaran berada pada spektrum frekuensi gempa (<= 8 Hz)
+  // TRACK 1: Algoritma Klasik (Heuristik Fisika Seismik) - Tetap Menjadi Master Pengambil Keputusan
   bool is_earthquake_spike = (pga > 0.12 && (_current_hz == 0 || _current_hz <= 8)); 
-    
-    if ( (is_earthquake_spike && millis() - _telemetry_last_send >= 100) || (millis() - _telemetry_last_send >= 1000) ) {
+
+  // TRACK 2: TinyML Shadow Mode - Berjalan Paralel Menilai Probabilitas Gempa Tanpa Menyentuh Aktuator
+  static unsigned long _vibe_start_time = 0;
+  float duration_s = 1.0f;
+  if (pga > 0.025f) {
+    if (_vibe_start_time == 0) _vibe_start_time = millis();
+    duration_s = (millis() - _vibe_start_time) / 1000.0f;
+    if (duration_s < 0.5f) duration_s = 0.5f;
+  } else {
+    _vibe_start_time = 0;
+    duration_s = 1.0f;
+  }
+
+  // Hitung probabilitas TinyML (0.00 - 1.00)
+  float ml_prob = 0.01f;
+  if (pga >= 0.02f) {
+    float effective_hz = ((float)_current_hz > 0.0f) ? (float)_current_hz : (pga >= 0.12f ? 2.5f : 18.0f);
+    ml_prob = lindu_predict_earthquake(pga, ratio, effective_hz, rms, duration_s, 0.5f);
+  } else {
+    ml_prob = 0.01f + (pga / 0.02f) * 0.02f;
+  }
+  bool ml_detect = (ml_prob >= 0.50f);
+  bool ml_agree = (ml_detect == is_earthquake_spike);
+
+  if ( (is_earthquake_spike && millis() - _telemetry_last_send >= 100) || (millis() - _telemetry_last_send >= 1000) ) {
     SensorEvent ev = {pga,   ratio, _current_hz, rms,  dyn_x,
-                      dyn_y, dyn_z, millis(),    temp, pres};
+                      dyn_y, dyn_z, millis(),    temp, pres,
+                      ml_prob, ml_agree};
     if (is_earthquake_spike) {
-            xQueueSendToFront(_eventQueue, &ev, 0);
-        } else {
-            xQueueSend(_eventQueue, &ev, 0);
-        }
+      xQueueSendToFront(_eventQueue, &ev, 0);
+    } else {
+      xQueueSend(_eventQueue, &ev, 0);
+    }
     _telemetry_last_send = millis();
   }
 }

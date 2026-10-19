@@ -60,7 +60,7 @@ void OTAUpdater::loop() {
         _last_check = millis();
         if (otaTaskHandle == NULL) {
             Serial.println("[OTA] Memicu FreeRTOS Background Task di Core 0...");
-            xTaskCreatePinnedToCore(otaTask, "OTA_Task", 8192, this, 1, &otaTaskHandle, 0); // Core 0
+            xTaskCreatePinnedToCore(otaTask, "OTA_Task", 16384, this, 1, &otaTaskHandle, 0); // Core 0 (16KB stack untuk TLS)
         }
     }
 }
@@ -73,7 +73,10 @@ void OTAUpdater::checkForUpdate() {
     
     WiFiClientSecure client;
     client.setInsecure();
+    client.setTimeout(15);
     HTTPClient http;
+    http.setTimeout(15000);
+    http.setUserAgent("ESP32-Lindu-EEW");
     
     String url = String("https://api.github.com/repos/") + configMgr.config.ota_repo + "/releases/latest";
     http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS); // Wajib agar bisa mengikuti redirect jika Repo pindah organisasi
@@ -82,12 +85,12 @@ void OTAUpdater::checkForUpdate() {
     
     if (httpCode == 200) {
         // [BULLETPROOF] Menggunakan Stream dan Filter agar hemat RAM (anti-crash walau JSON GitHub raksasa)
-        StaticJsonDocument<200> filter;
+        StaticJsonDocument<512> filter;
         filter["tag_name"] = true;
         filter["assets"][0]["name"] = true;
         filter["assets"][0]["browser_download_url"] = true;
         
-        DynamicJsonDocument doc(1024);
+        DynamicJsonDocument doc(4096);
         DeserializationError error = deserializeJson(doc, http.getStream(), DeserializationOption::Filter(filter));
         
         if (!error) {
@@ -153,7 +156,10 @@ void OTAUpdater::checkForUpdate() {
 bool OTAUpdater::performUpdate(const char* url, const char* tag) {
     WiFiClientSecure client;
     client.setInsecure();
+    client.setTimeout(25);
     HTTPClient http;
+    http.setTimeout(25000);
+    http.setUserAgent("ESP32-Lindu-EEW");
     
     http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
     http.begin(client, url);

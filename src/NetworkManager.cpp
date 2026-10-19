@@ -79,7 +79,7 @@ void NetworkManager::reconnectMQTT() {
     }
 }
 
-void NetworkManager::publishEvent(float pga, float sta_lta, int freq_hz, float ax, float ay, float az, unsigned long uptime_ms, double epoch, float lat, float lon, float temp, float pres) {
+void NetworkManager::publishEvent(float pga, float sta_lta, int freq_hz, float ax, float ay, float az, unsigned long uptime_ms, double epoch, float lat, float lon, float temp, float pres, float ml_prob, bool ml_agree) {
     if (!mqtt.connected()) return;
     
     StaticJsonDocument<512> doc;
@@ -103,6 +103,8 @@ void NetworkManager::publishEvent(float pga, float sta_lta, int freq_hz, float a
     doc["gas_raw"] = sensorMgr.gas_raw_value;
     doc["temperature"] = temp;
     doc["pressure"] = pres;
+    doc["ml_prob"] = (round(ml_prob * 10000.0f) / 10000.0f);
+    doc["ml_agree"] = ml_agree;
     
     // Data Cuaca (Hanya diisi jika valid)
     if (temp > 0.0) doc["temperature"] = temp;

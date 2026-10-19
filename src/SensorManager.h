@@ -27,6 +27,8 @@ struct SensorEvent {
     unsigned long uptime_ms;
     float temperature;
     float pressure;
+    float ml_prob;
+    bool  ml_agree;
 };
 
 #define GAS_LEAK_THRESHOLD 2000
