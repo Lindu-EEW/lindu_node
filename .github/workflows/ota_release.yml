@@ -29,7 +29,6 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -U platformio
-          pio update
 
       - name: Inject Auto-Increment Version Tag
         run: |
@@ -41,13 +40,26 @@ jobs:
       - name: Compile Firmware
         run: |
           if ! pio run -e ${{ matrix.environment }} > compile.log 2>&1; then
-            echo "### Compile Error for ${{ matrix.environment }}" >> $GITHUB_STEP_SUMMARY
-            echo '```' >> $GITHUB_STEP_SUMMARY
-            tail -n 80 compile.log >> $GITHUB_STEP_SUMMARY
-            echo '```' >> $GITHUB_STEP_SUMMARY
             cat compile.log
+            python3 -c '
+import sys
+try:
+    log = open("compile.log").read()
+    err = log[-1500:] if len(log) > 1500 else log
+    esc = err.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+    print(f"::error title=Compile Failure ${{ matrix.environment }}::{esc}")
+except Exception as e:
+    print(f"::error title=Compile Failure ${{ matrix.environment }}::Error reading compile.log: {e}")
+'
             exit 1
           fi
+
+      - name: Upload Compile Log on Failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: compile-log-${{ matrix.environment }}
+          path: compile.log
 
       - name: Rename Firmware Binary
         run: |
