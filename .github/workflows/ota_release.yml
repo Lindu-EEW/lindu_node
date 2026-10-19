@@ -40,7 +40,13 @@ jobs:
 
       - name: Compile Firmware
         run: |
-          pio run -e ${{ matrix.environment }}
+          pio run -e ${{ matrix.environment }} 2>&1 | tee compile.log || {
+            echo "### Compile Error for ${{ matrix.environment }}" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            tail -n 80 compile.log >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            exit 1
+          }
 
       - name: Rename Firmware Binary
         run: |
