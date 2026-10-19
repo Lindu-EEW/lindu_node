@@ -43,6 +43,18 @@ jobs:
           set -o pipefail
           pio run -e ${{ matrix.environment }} 2>&1 | tee compile.log
 
+      - name: Output Log on Failure
+        if: failure()
+        shell: python
+        run: |
+          try:
+              with open('compile.log', 'r') as f:
+                  lines = f.readlines()
+              err_summary = ''.join(lines[-40:]).replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+              print(f"::error::{err_summary}")
+          except Exception as e:
+              print(f"::error::Failed to read compile.log: {e}")
+
       - name: Upload Compile Log on Failure
         if: failure()
         uses: actions/upload-artifact@v4
