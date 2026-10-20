@@ -343,6 +343,20 @@ void NetworkManager::publishStatus(String status, bool sensor_ok, float tilt_ang
     mqtt.publish(willTopic, statusPayload, true);
 }
 
+bool NetworkManager::publishActuator(const char* actuator, const char* state, const char* reason, double epoch) {
+    if (!mqtt.connected()) return false;
+
+    char topic[64];
+    snprintf(topic, sizeof(topic), "lindu/sensor/%s/actuator", _configMgr->config.node_id);
+
+    char payload[192];
+    snprintf(payload, sizeof(payload),
+        "{\"node_id\":\"%s\",\"actuator\":\"%s\",\"state\":\"%s\",\"reason\":\"%s\",\"ts\":%.3f}",
+        _configMgr->config.node_id, actuator, state, reason, epoch);
+
+    return mqtt.publish(topic, payload);
+}
+
 void NetworkManager::publishLog(const char* message) {
     if (!mqtt.connected()) return;
     if (!remote_debug_enabled) return; // Default aktif; dimatikan/diaktifkan lewat tombol DISABLE/ENABLE DEBUG di Grafana
