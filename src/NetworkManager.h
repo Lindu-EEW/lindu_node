@@ -13,7 +13,10 @@ public:
     void publishStatus(String status, bool sensor_ok, float tilt_angle, String pose, bool motion_detected = false);
     void publishEvent(float pga, float sta_lta, int freq_hz, float ax, float ay, float az, unsigned long uptime_ms, double epoch, float lat, float lon, float temp, float pres, float ml_prob = 0.0f, bool ml_agree = true);
     void publishLog(const char* message);
-    
+    // Event perubahan state aktuator (valve/door/buzzer/led) -> lindu/sensor/<id>/actuator.
+    // Return false jika MQTT belum terhubung, supaya pemanggil bisa mencoba lagi.
+    bool publishActuator(const char* actuator, const char* state, const char* reason, double epoch);
+
 private:
     ConfigManager* _configMgr;
     

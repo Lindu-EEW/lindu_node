@@ -346,7 +346,46 @@ void networkTaskCode(void* parameter) {
         }
         
         pixels.show();
-        
+
+        // LOG EVENT AKTUATOR: kirim satu event tiap state berubah (valve, door, buzzer, led).
+        // Hanya dikirim dari task ini (core 0) seperti publish lain. Cache state baru diperbarui
+        // kalau publish berhasil, jadi state awal setelah boot tetap tercatat begitu MQTT tersambung.
+        // Alasan (reason) adalah inferensi dari kondisi saat perubahan terdeteksi.
+        {
+            const char* alarm_mode = is_global_alarm ? "EARTHQUAKE"
+                                   : sensorMgr.gas_leak_detected ? "GAS_LEAK"
+                                   : is_local_alarm ? "LOCAL_VIBRATION"
+                                   : "NORMAL";
+            const char* reason = is_global_alarm ? "EARTHQUAKE_ALARM"
+                               : sensorMgr.gas_leak_detected ? "GAS_LEAK"
+                               : "MANUAL_OR_RESET";
+
+            static int last_valve_log = -1;
+            if (last_valve_log != (int)is_valve_locked) {
+                if (networkMgr.publishActuator("valve", is_valve_locked ? "CLOSED" : "OPEN", reason, getEpochTime()))
+                    last_valve_log = (int)is_valve_locked;
+            }
+#if !ARDUINO_USB_CDC_ON_BOOT
+            static int last_door_log = -1;
+            if (last_door_log != (int)is_door_locked) {
+                if (networkMgr.publishActuator("door", is_door_locked ? "LOCKED" : "UNLOCKED",
+                                               is_global_alarm ? "ALARM_OCCUPANCY_PIR" : "MANUAL_OR_RESET", getEpochTime()))
+                    last_door_log = (int)is_door_locked;
+            }
+#endif
+            bool siren_on = is_global_alarm || sensorMgr.gas_leak_detected;
+            static int last_buzzer_log = -1;
+            if (last_buzzer_log != (int)siren_on) {
+                if (networkMgr.publishActuator("buzzer", siren_on ? "ON" : "OFF", alarm_mode, getEpochTime()))
+                    last_buzzer_log = (int)siren_on;
+            }
+            static String last_led_mode = "";
+            if (last_led_mode != alarm_mode) {
+                if (networkMgr.publishActuator("led", alarm_mode, alarm_mode, getEpochTime()))
+                    last_led_mode = alarm_mode;
+            }
+        }
+
         // Cek apakah ada data sensor di antrean (Non-Blocking)
         if (xQueueReceive(eventQueue, &ev, 0) == pdTRUE) {
             local_latest_pga = ev.pga;
