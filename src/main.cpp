@@ -8,6 +8,7 @@
 #include "NetworkManager.h"
 #include "SensorManager.h"
 #include "OTAUpdater.h"
+#include "StorageManager.h"
 #include <WiFi.h>
 #include "esp_ota_ops.h"
 #include <Preferences.h>
@@ -423,6 +424,25 @@ void networkTaskCode(void* parameter) {
                     digitalWrite(BUZZER_PIN, BUZZER_OFF);
                 }
             }
+            bool is_earthquake = (ev.pga >= 0.12 && is_seismic_frequency) || (ev.ml_prob >= 0.50f);
+            bool is_significant_shake = (ev.pga >= 0.05 && ev.ratio >= 2.0);
+            bool is_offline = !networkMgr.isConnected();
+
+            // PEREKAM BLACKBOX GEMPA:
+            // Rekam getaran gempa ke flash storage (LittleFS) saat offline maupun online.
+            // Data disimpan dalam format CSV & JSONL sehingga aman dari gangguan jaringan
+            // dan dapat langsung diekspor untuk dataset pembelajaran mesin (TinyML).
+            if (is_earthquake || (is_offline && is_significant_shake)) {
+                storageMgr.recordEarthquake(
+                    getEpochTime(), ev.uptime_ms,
+                    ev.pga, ev.ratio, ev.freq_hz, ev.rms,
+                    ev.accel_x, ev.accel_y, ev.accel_z,
+                    1.0f, 0.5f,
+                    ev.ml_prob, ev.ml_agree,
+                    is_earthquake, is_offline
+                );
+            }
+
             networkMgr.publishEvent(
                 ev.pga, ev.ratio, ev.freq_hz,
                 ev.accel_x, ev.accel_y, ev.accel_z,
@@ -431,6 +451,15 @@ void networkTaskCode(void* parameter) {
                 ev.temperature, ev.pressure,
                 ev.ml_prob, ev.ml_agree
             );
+        }
+
+        // Sinkronisasi berkala data rekaman offline ke MQTT server saat koneksi internet pulih
+        static unsigned long last_sync_check = 0;
+        if (networkMgr.isConnected() && storageMgr.getUnsyncedCount() > 0 && (millis() - last_sync_check >= 15000)) {
+            last_sync_check = millis();
+            storageMgr.syncOfflineRecords([](const char* payload) {
+                return networkMgr.publishOfflineRecord(payload);
+            }, 10);
         }
         
         // Beri nafas untuk Watchdog Core 0 (delay 20ms juga membuat animasi breathing lebih smooth)
@@ -476,6 +505,7 @@ void setup() {
 
     // 1. Muat Konfigurasi (EEPROM) & WiFi Captive Portal
     configMgr.begin();
+    storageMgr.begin(); // Mount LittleFS untuk rekaman gempa offline & dataset ML
     
     // Nyalakan LED biru saat sedang setup WiFi
     pixels.begin();
@@ -585,6 +615,24 @@ void loop() {
 
     // TASK CORE 1: Membaca Sensor (I2C) & Filter DSP (Real-time murni)
     sensorMgr.loop();  
+
+    // Periksa perintah serial (misal untuk dump/export dataset gempa offline ke PC / Python ML)
+    if (Serial.available()) {
+        String cmd = Serial.readStringUntil('\n');
+        cmd.trim();
+        cmd.toUpperCase();
+        if (cmd == "DUMP" || cmd == "EXPORT" || cmd == "CSV") {
+            storageMgr.dumpCSVToSerial();
+        } else if (cmd == "JSON" || cmd == "JSONL") {
+            storageMgr.dumpJSONToSerial();
+        } else if (cmd == "STATUS" || cmd == "STORAGE") {
+            Serial.printf("[STORAGE] Records: %zu (%zu belum sync), Sisa Flash: %u KB\n",
+                          storageMgr.getRecordCount(), storageMgr.getUnsyncedCount(),
+                          (unsigned int)(storageMgr.getFreeBytes() / 1024));
+        } else if (cmd == "CLEAR" || cmd == "RESET_DATA") {
+            storageMgr.clearRecords();
+        }
+    }
     
     // Beri sedikit nafas agar Watchdog Timer Core 1 tidak marah
     delay(1);

@@ -16,6 +16,8 @@ public:
     // Event perubahan state aktuator (valve/door/buzzer/led) -> lindu/sensor/<id>/actuator.
     // Return false jika MQTT belum terhubung, supaya pemanggil bisa mencoba lagi.
     bool publishActuator(const char* actuator, const char* state, const char* reason, double epoch);
+    bool publishOfflineRecord(const char* payload);
+    const char* getNodeId() const { return _configMgr ? _configMgr->config.node_id : ""; }
 
 private:
     ConfigManager* _configMgr;

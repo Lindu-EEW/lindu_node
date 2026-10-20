@@ -10,6 +10,7 @@ extern Preferences actPrefs;
 extern unsigned long global_alarm_until;
 #include "SensorManager.h"
 extern SensorManager sensorMgr;
+#include "StorageManager.h"
 #include <WiFiClient.h>
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
@@ -318,6 +319,34 @@ void NetworkManager::mqttCallback(char* topic, byte* payload, unsigned int lengt
                 delay(1000);
                 ESP.restart();
             }
+        } else if (doc["cmd"] == "clear_records") {
+            String target = doc["target_node"] | "all";
+            String my_id = String(instance->_configMgr->config.node_id);
+            if (target == "all" || target == my_id) {
+                storageMgr.clearRecords();
+                instance->publishLog("Flash earthquake records CLEARED.");
+            }
+        } else if (doc["cmd"] == "sync_records") {
+            String target = doc["target_node"] | "all";
+            String my_id = String(instance->_configMgr->config.node_id);
+            if (target == "all" || target == my_id) {
+                int n = storageMgr.syncOfflineRecords([instance](const char* p) {
+                    return instance->publishOfflineRecord(p);
+                }, 50);
+                char sync_msg[96];
+                snprintf(sync_msg, sizeof(sync_msg), "Synced %d offline records to server. (%zu left)",
+                         n, storageMgr.getUnsyncedCount());
+                instance->publishLog(sync_msg);
+            }
+        } else if (doc["cmd"] == "storage_status") {
+            String target = doc["target_node"] | "all";
+            String my_id = String(instance->_configMgr->config.node_id);
+            if (target == "all" || target == my_id) {
+                char s_msg[128];
+                snprintf(s_msg, sizeof(s_msg), "Storage: %zu records (%zu unsynced), %u KB free",
+                         storageMgr.getRecordCount(), storageMgr.getUnsyncedCount(), (unsigned int)(storageMgr.getFreeBytes() / 1024));
+                instance->publishLog(s_msg);
+            }
         }
     }
 }
@@ -337,8 +366,9 @@ void NetworkManager::publishStatus(String status, bool sensor_ok, float tilt_ang
 
     char statusPayload[512];
     snprintf(statusPayload, sizeof(statusPayload),
-        "{\"status\":\"%s\",\"node_id\":\"%s\",\"lat\":%.4f,\"lon\":%.4f,\"pose\":\"%s\",\"tilt_angle\":%.1f,\"sensor_ok\":%s,\"fw_version\":\"%s\",\"ota_status\":\"%s\",\"motion_detected\":%s}",
-        status.c_str(), _configMgr->config.node_id, _configMgr->config.lat, _configMgr->config.lon, pose.c_str(), tilt_angle, sensor_ok ? "true" : "false", CURRENT_VERSION, otaUpdater.ota_status.c_str(), motion_detected ? "true" : "false");
+        "{\"status\":\"%s\",\"node_id\":\"%s\",\"lat\":%.4f,\"lon\":%.4f,\"pose\":\"%s\",\"tilt_angle\":%.1f,\"sensor_ok\":%s,\"fw_version\":\"%s\",\"ota_status\":\"%s\",\"motion_detected\":%s,\"records\":%zu,\"unsynced\":%zu}",
+        status.c_str(), _configMgr->config.node_id, _configMgr->config.lat, _configMgr->config.lon, pose.c_str(), tilt_angle, sensor_ok ? "true" : "false", CURRENT_VERSION, otaUpdater.ota_status.c_str(), motion_detected ? "true" : "false",
+        storageMgr.getRecordCount(), storageMgr.getUnsyncedCount());
 
     mqtt.publish(willTopic, statusPayload, true);
 }
@@ -353,6 +383,15 @@ bool NetworkManager::publishActuator(const char* actuator, const char* state, co
     snprintf(payload, sizeof(payload),
         "{\"node_id\":\"%s\",\"actuator\":\"%s\",\"state\":\"%s\",\"reason\":\"%s\",\"ts\":%.3f}",
         _configMgr->config.node_id, actuator, state, reason, epoch);
+
+    return mqtt.publish(topic, payload);
+}
+
+bool NetworkManager::publishOfflineRecord(const char* payload) {
+    if (!mqtt.connected()) return false;
+
+    char topic[64];
+    snprintf(topic, sizeof(topic), "lindu/sensor/%s/offline_events", _configMgr->config.node_id);
 
     return mqtt.publish(topic, payload);
 }
