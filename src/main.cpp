@@ -453,13 +453,28 @@ void networkTaskCode(void* parameter) {
             );
         }
 
-        // Sinkronisasi berkala data rekaman offline ke MQTT server saat koneksi internet pulih
+        // SINKRONISASI OTOMATIS SAAT KEMBALI TERHUBUNG:
+        // 1. Seketika saat transisi dari offline -> online terdeteksi (Immediate Reconnect Trigger)
+        // 2. Berulang cepat setiap 5 detik selama masih ada antrean rekaman offline yang belum terkirim
+        static bool last_net_connected = false;
+        bool is_now_connected = networkMgr.isConnected();
+        bool just_reconnected = (!last_net_connected && is_now_connected);
+        last_net_connected = is_now_connected;
+
         static unsigned long last_sync_check = 0;
-        if (networkMgr.isConnected() && storageMgr.getUnsyncedCount() > 0 && (millis() - last_sync_check >= 15000)) {
-            last_sync_check = millis();
-            storageMgr.syncOfflineRecords([](const char* payload) {
-                return networkMgr.publishOfflineRecord(payload);
-            }, 10);
+        if (is_now_connected && storageMgr.getUnsyncedCount() > 0) {
+            if (just_reconnected || (millis() - last_sync_check >= 5000)) {
+                last_sync_check = millis();
+                int synced = storageMgr.syncOfflineRecords([](const char* payload) {
+                    return networkMgr.publishOfflineRecord(payload);
+                }, 25);
+                if (synced > 0) {
+                    char sync_log[96];
+                    snprintf(sync_log, sizeof(sync_log), "[AUTO-SYNC] %d rekaman gempa offline berhasil dikirim ke server (%zu tersisa)",
+                             synced, storageMgr.getUnsyncedCount());
+                    networkMgr.publishLog(sync_log);
+                }
+            }
         }
         
         // Beri nafas untuk Watchdog Core 0 (delay 20ms juga membuat animasi breathing lebih smooth)
