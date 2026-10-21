@@ -241,10 +241,10 @@ void networkTaskCode(void* parameter) {
             }
             
             // KONSENSUS LOKAL TERCAPAI:
-            // 1. Quorum 3 Node dalam 1 Grup (Tri-Node Quorum)
-            // 2. ATAU Server Offline dan >= 2 Node dalam 1 Grup terpicu (Edge Fail-Safe)
+            // Syarat Quorum Grup: Karena terdapat 3 node dalam 1 grup, konsensus WAJIB 3 node serentak (Tri-Node Quorum).
+            // Tidak boleh hanya 2 node dalam grup yang sama untuk mencegah false alarm getaran meja/lokal.
             if (global_alarm_until == 0 || millis() >= global_alarm_until) {
-                if (total_group_active >= 3 || (!networkMgr.isConnected() && total_group_active >= 2)) {
+                if (total_group_active >= 3) {
                     if (max_peer_pga >= 0.05f) {
                         Serial.printf("\n🚨 [P2P LAN QUORUM] %d Node di grup '%s' bergetar serentak (PGA %.4fG)! Memicu alarm darurat & solenoid valve!\n",
                                       total_group_active, configMgr.config.group_id, max_peer_pga);
