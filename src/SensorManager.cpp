@@ -312,9 +312,9 @@ readGasSensor();
   }
 
   // TRACK 1: Algoritma Klasik (Heuristik Fisika Seismik)
-  // Frekuensi seismik gempa tektonik <= 15 Hz; deteksi getaran Shindo 1-3 (PGA >= 0.0035g, STA/LTA >= 1.15)
+  // Frekuensi seismik gempa tektonik <= 15 Hz; deteksi getaran Shindo 1-3 (PGA >= 0.0035g, STA/LTA >= 1.25)
   bool is_seismic_freq = (_current_hz == 0 || _current_hz <= 15);
-  bool is_earthquake_spike = (pga >= 0.0035f && is_seismic_freq && ratio >= 1.15f) || (pga >= 0.05f && is_seismic_freq); 
+  bool is_earthquake_spike = (pga >= 0.0035f && is_seismic_freq && ratio >= 1.25f) || (pga >= 0.05f && is_seismic_freq); 
 
   // TRACK 2: TinyML Shadow Mode - Berjalan Paralel Menilai Probabilitas Gempa Tanpa Menyentuh Aktuator
   static unsigned long _vibe_start_time = 0;

@@ -488,16 +488,16 @@ void networkTaskCode(void* parameter) {
         if (xQueueReceive(eventQueue, &ev, 0) == pdTRUE) {
             local_latest_pga = ev.pga;
             
-            // Filter Seismik Multi-Tier: Gempa bumi tektonik riil dominan pada frekuensi rendah (<= 28 Hz).
-            // Hentakan langkah kaki keras, pintu dibanting, atau meja tersenggol berfrekuensi tinggi (> 30-50 Hz)
-            // difilter, dan dikonfirmasi silang lewat konsensus multi-node.
-            bool is_seismic_frequency = (ev.freq_hz == 0 || ev.freq_hz <= 28);
+            // Filter Seismik Multi-Tier: Gempa bumi tektonik riil dominan pada frekuensi rendah (<= 15 Hz).
+            // Hentakan langkah kaki keras, pintu dibanting, mengetik keyboard, atau meja tersenggol berfrekuensi tinggi (> 16-35 Hz)
+            // difilter ketat agar tidak memicu alarm palsu.
+            bool is_seismic_frequency = (ev.freq_hz == 0 || ev.freq_hz <= 15);
 
             // KATEGORI DETEKSI GEMPA DUA TINGKAT (MULTI-TIER):
             // 1. Gempa Kuat / Merusak (Shindo 4+, PGA >= 0.05g): Butuh tindakan aktuator & alarm
-            // 2. Gempa Ringan / Terasa (Shindo 1-3, PGA >= 0.0035g, STA/LTA >= 1.15): Direkam untuk katalog & AI
+            // 2. Gempa Ringan / Terasa (Shindo 1-3, PGA >= 0.0035g, STA/LTA >= 1.25): Direkam untuk katalog & AI
             bool is_severe_earthquake = (ev.pga >= 0.05f && is_seismic_frequency) || (ev.ml_prob >= 0.65f);
-            bool is_minor_earthquake = (ev.pga >= 0.0035f && is_seismic_frequency && ev.ratio >= 1.15f) || (ev.ml_prob >= 0.35f);
+            bool is_minor_earthquake = (ev.pga >= 0.0035f && is_seismic_frequency && ev.ratio >= 1.25f) || (ev.ml_prob >= 0.40f);
             bool is_significant_shake = (ev.pga >= 0.020f && ev.ratio >= 1.5f);
             bool is_offline = !networkMgr.isConnected();
 
