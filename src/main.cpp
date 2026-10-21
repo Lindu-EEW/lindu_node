@@ -240,35 +240,26 @@ void networkTaskCode(void* parameter) {
                 max_peer_pga = local_latest_pga;
             }
             
-            // KONSENSUS LOKAL TERCAPAI:
-            // Syarat Quorum Grup: Karena terdapat 3 node dalam 1 grup, konsensus WAJIB 3 node serentak (Tri-Node Quorum).
-            // Tidak boleh hanya 2 node dalam grup yang sama untuk mencegah false alarm getaran meja/lokal.
-            if (global_alarm_until == 0 || millis() >= global_alarm_until) {
-                if (total_group_active >= 3) {
-                    if (max_peer_pga >= 0.05f) {
-                        Serial.printf("\n🚨 [P2P LAN QUORUM] %d Node di grup '%s' bergetar serentak (PGA %.4fG)! Memicu alarm darurat & solenoid valve!\n",
-                                      total_group_active, configMgr.config.group_id, max_peer_pga);
-                        char qLog[128];
-                        snprintf(qLog, sizeof(qLog), "[P2P LAN QUORUM] %d Node terkonfirmasi serentak di grup %s (Max PGA: %.4fG)! Alarm lokal dipicu.",
-                                 total_group_active, configMgr.config.group_id, max_peer_pga);
-                        networkMgr.publishLog(qLog);
-                        
-                        global_alarm_until = millis() + 15000; // Nyalakan sirine & LED merah 15 detik
-                        is_valve_locked = true;                // Kunci valve keselamatan
-                        actPrefs.putBool("valve_locked", true);
-                    } else {
-                        // Micro-tremor / Guncangan Ringan (PGA < 0.05G): Quorum terverifikasi aman, tidak perlu sirine / pemadaman katup gas
-                        static unsigned long last_advisory_ms = 0;
-                        if (millis() - last_advisory_ms >= 10000) {
-                            last_advisory_ms = millis();
-                            Serial.printf("\nℹ️ [P2P LAN ADVISORY] %d Node di grup '%s' mencatat getaran ringan terverifikasi (PGA %.4fG < 0.05G). Status aman.\n",
-                                          total_group_active, configMgr.config.group_id, max_peer_pga);
-                            char qLog[128];
-                            snprintf(qLog, sizeof(qLog), "[P2P LAN ADVISORY] %d Node serentak di grup %s (PGA: %.4fG). Status aman (micro-tremor).",
-                                     total_group_active, configMgr.config.group_id, max_peer_pga);
-                            networkMgr.publishLog(qLog);
-                        }
-                    }
+            // KONSENSUS SEISMOLOGI (Arsitektur Lindu):
+            // 1. Saat SERVER ONLINE (Normal): Seluruh event dikirim ke Server terlebih dahulu.
+            //    Server konsensus memvalidasi gelombang P-Wave & Quorum 3 node.
+            //    Node HANYA membunyikan sirine jika menerima perintah resmi 'trigger_siren' dari server.
+            // 2. Saat SERVER OFFLINE (!networkMgr.isConnected()): P2P LAN Quorum aktif sebagai fail-safe darurat.
+            if (!networkMgr.isConnected() && (global_alarm_until == 0 || millis() >= global_alarm_until)) {
+                if (total_group_active >= 3 && max_peer_pga >= 0.05f) {
+                    Serial.printf("\n🚨 [P2P OFFLINE FAIL-SAFE] %d Node di grup '%s' bergetar serentak (PGA %.4fG) saat server offline! Memicu alarm darurat & solenoid valve!\n",
+                                  total_group_active, configMgr.config.group_id, max_peer_pga);
+                    global_alarm_until = millis() + 15000; // Nyalakan sirine & LED merah 15 detik
+                    is_valve_locked = true;                // Kunci valve keselamatan
+                    actPrefs.putBool("valve_locked", true);
+                }
+            } else if (total_group_active >= 3) {
+                // Online Advisory: Hanya catat info konsensus P2P tanpa mendahului perintah server
+                static unsigned long last_p2p_adv = 0;
+                if (millis() - last_p2p_adv >= 10000) {
+                    last_p2p_adv = millis();
+                    Serial.printf("\nℹ️ [P2P LAN INFO] %d Node di grup '%s' serentak aktif (PGA: %.4fG). Menunggu verifikasi master server...\n",
+                                  total_group_active, configMgr.config.group_id, max_peer_pga);
                 }
             }
         }
@@ -511,25 +502,19 @@ void networkTaskCode(void* parameter) {
             bool is_seismic_frequency = (ev.freq_hz == 0 || ev.freq_hz <= 15);
 
             // KATEGORI DETEKSI GEMPA DUA TINGKAT (MULTI-TIER):
-            // 1. Gempa Kuat / Merusak (Shindo 4+, PGA >= 0.05g): Butuh tindakan aktuator & alarm
-            // 2. Gempa Ringan / Terasa (Shindo 1-3, PGA >= 0.0035g, STA/LTA >= 1.25): Direkam untuk katalog & AI
-            bool is_severe_earthquake = (ev.pga >= 0.05f && is_seismic_frequency) || (ev.ml_prob >= 0.65f);
-            bool is_minor_earthquake = (ev.pga >= 0.0035f && is_seismic_frequency && ev.ratio >= 1.25f) || (ev.ml_prob >= 0.40f);
-            bool is_significant_shake = (ev.pga >= 0.020f && ev.ratio >= 1.5f);
+            // 1. Gempa Kuat / Merusak (Shindo 4+, PGA >= 0.05g, STA/LTA >= 2.0, Freq <= 15Hz)
+            // 2. Gempa Ringan / Terasa (Shindo 1-3, PGA >= 0.0040g, STA/LTA >= 1.50, Freq <= 15Hz)
+            bool is_severe_earthquake = (ev.pga >= 0.05f && is_seismic_frequency && ev.ratio >= 2.0f) || (ev.ml_prob >= 0.65f);
+            bool is_minor_earthquake = (ev.pga >= 0.0040f && is_seismic_frequency && ev.ratio >= 1.50f) || (ev.ml_prob >= 0.50f);
+            bool is_significant_shake = (ev.pga >= 0.020f && ev.ratio >= 1.5f && is_seismic_frequency);
             bool is_offline = !networkMgr.isConnected();
 
             if (is_severe_earthquake || is_minor_earthquake) {
                 last_self_trigger_ms = millis();
                 
-                // HANYA gempa kuat / guncangan keras (PGA >= 0.05g) yang menyalakan indikator LED Pink/Ungu
-                // Gempa mikro / getaran halus (0.0035g - 0.02g) tetap bernafas Hijau tenang agar tidak silau/mengganggu
-                if (is_severe_earthquake) {
-                    local_alarm_until = millis() + 5000;
-                }
-                
-                // BROADCAST P2P UDP KE LAN (Inter-Node Local Confirmation):
+                // BROADCAST P2P UDP KE LAN (Hanya untuk getaran signifikan >= 0.02G):
                 // Mengirim info getaran ke seluruh node di jaringan lokal dalam 1-3 ms
-                if (WiFi.status() == WL_CONNECTED) {
+                if (WiFi.status() == WL_CONNECTED && ev.pga >= 0.02f) {
                     char udpBuf[160];
                     snprintf(udpBuf, sizeof(udpBuf), 
                              "{\"type\":\"QUAKE\",\"node\":\"%s\",\"group\":\"%s\",\"pga\":%.4f,\"ts\":%.2f}",
@@ -547,22 +532,6 @@ void networkTaskCode(void* parameter) {
                     global_alarm_until = millis() + 15000; // Sirine merah 15 detik
                     is_valve_locked = true;
                     actPrefs.putBool("valve_locked", true);
-                }
-                
-                // TICK Dinamis: Volume/Intensitas diwakili oleh durasi (Haptic Feedback) untuk getaran terasa
-                if (ev.pga > 0.05) {
-                    static unsigned long last_tick_time = 0;
-                    if (!is_global_alarm && (millis() - last_tick_time > 500)) { 
-                        last_tick_time = millis();
-                        
-                        int beep_duration = (int)(ev.pga * 40.0);
-                        if (beep_duration < 5) beep_duration = 5;     // Getaran pelan = 5ms (Tik kecil)
-                        if (beep_duration > 100) beep_duration = 100; // Getaran keras = 100ms (Bip panjang/keras)
-                        
-                        digitalWrite(BUZZER_PIN, BUZZER_ON);
-                        vTaskDelay(pdMS_TO_TICKS(beep_duration));
-                        digitalWrite(BUZZER_PIN, BUZZER_OFF);
-                    }
                 }
             }
 

@@ -152,8 +152,9 @@ void NetworkManager::mqttCallback(char* topic, byte* payload, unsigned int lengt
             );
             
             bool is_bypass = doc["bypass"] | false;
+            float radius = doc["radius_km"] | 50.0f;
             
-            if (dist < 50.0 || is_bypass) {
+            if (dist < radius || is_bypass) {
 #if !ARDUINO_USB_CDC_ON_BOOT
                 Serial.println("[!] SIRINE MENYALA! Valve Dikunci Tutup. Pintu tetap mengikuti occupancy PIR (unlock hanya jika ada orang terdeteksi 10 menit terakhir).");
 #else
@@ -294,6 +295,15 @@ void NetworkManager::mqttCallback(char* topic, byte* payload, unsigned int lengt
                     Serial.printf("[i] Perintah Sistem: SET GROUP '%s'. Memperbarui status...\n", instance->_configMgr->config.group_id);
                     instance->forcePublishStatus();
                 }
+            }
+        } else if (doc["cmd"] == "tare" || doc["cmd"] == "calibrate") {
+            String target = doc["target_node"] | "all";
+            String my_id = String(instance->_configMgr->config.node_id);
+            if (target == "all" || target == my_id) {
+                extern SensorManager sensorMgr;
+                sensorMgr.tare();
+                Serial.println("[i] Perintah Sistem: TARE / CALIBRATE. Memulai tare baseline sensor...");
+                instance->publishLog("Memulai Tare / Nol-kan baseline sensor pada posisi saat ini...");
             }
         } else if (doc["cmd"] == "factory_reset") {
             String target = doc["target_node"] | "all";

@@ -259,17 +259,31 @@ readGasSensor();
         _is_calibrated = true;
         Serial.printf("[SENSOR] Kalibrasi Selesai! Baseline DC: (%.3f, %.3f, %.3f) m/s^2 (%d sampel)\n",
                       _dc_x, _dc_y, _dc_z, CALIBRATION_SAMPLE_TARGET);
+        char c_msg[128];
+        snprintf(c_msg, sizeof(c_msg), "[CALIB OK] Baseline Tare Selesai: (%.3f, %.3f, %.3f) m/s^2, Tilt: %.1f° (%s)",
+                 _dc_x, _dc_y, _dc_z, getTiltAngle(), getPose().c_str());
+        networkMgr.publishLog(c_msg);
       } else {
-        // Tahan pengiriman data dan perhitungan PGA selama 3 detik kalibrasi awal
+        // Tahan pengiriman data dan perhitungan PGA selama kalibrasi
         return;
       }
     }
 
-    // Adaptasi lambat DC offset (thermal drift & rotasi lambat)
-    float alpha_dc = 0.002;
-    _dc_x = (accel.acceleration.x * alpha_dc) + (_dc_x * (1.0 - alpha_dc));
-    _dc_y = (accel.acceleration.y * alpha_dc) + (_dc_y * (1.0 - alpha_dc));
-    _dc_z = (accel.acceleration.z * alpha_dc) + (_dc_z * (1.0 - alpha_dc));
+    // Auto-Tare Kontinu (Zero-Tracking saat sensor diam):
+    // Hitung deviasi dinamik instan relatif terhadap baseline
+    float raw_dyn_x = accel.acceleration.x - _dc_x;
+    float raw_dyn_y = accel.acceleration.y - _dc_y;
+    float raw_dyn_z = accel.acceleration.z - _dc_z;
+    float inst_pga = sqrt(raw_dyn_x * raw_dyn_x + raw_dyn_y * raw_dyn_y + raw_dyn_z * raw_dyn_z) / 9.80665f;
+
+    // Saat kondisi tenang (inst_pga < 0.015g), perbarui baseline DC secara adaptif
+    // Ini memastikan posisi sensor miring, vertikal di dinding, maupun tidur selalu ter-nol-kan (tare ke 0)
+    if (inst_pga < 0.015f) {
+      float alpha_dc = 0.005f;
+      _dc_x = (accel.acceleration.x * alpha_dc) + (_dc_x * (1.0f - alpha_dc));
+      _dc_y = (accel.acceleration.y * alpha_dc) + (_dc_y * (1.0f - alpha_dc));
+      _dc_z = (accel.acceleration.z * alpha_dc) + (_dc_z * (1.0f - alpha_dc));
+    }
 
     dyn_x = accel.acceleration.x - _dc_x;
     dyn_y = accel.acceleration.y - _dc_y;
@@ -285,12 +299,19 @@ readGasSensor();
       _zcr_timer = millis();
     }
 
-    pga = sqrt(dyn_x * dyn_x + dyn_y * dyn_y + dyn_z * dyn_z) / 9.81;
+    float raw_pga = sqrt(dyn_x * dyn_x + dyn_y * dyn_y + dyn_z * dyn_z) / 9.80665f;
+    // Deadband peredam noise sensor miring:
+    // Fluktuasi MEMS diam di bawah batas sensor diam (0.0030g) di-clamp bersih ke 0.000g
+    if (raw_pga < 0.0030f) {
+      pga = 0.0f;
+    } else {
+      pga = raw_pga;
+    }
     float energy = pga * pga;
-    rms = sqrt((dyn_x * dyn_x + dyn_y * dyn_y + dyn_z * dyn_z) / 3.0) / 9.81;
+    rms = sqrt((dyn_x * dyn_x + dyn_y * dyn_y + dyn_z * dyn_z) / 3.0f) / 9.80665f;
 
-    _sta_ema = (energy * 0.1) + (_sta_ema * 0.9);
-    _lta_ema = (energy * 0.005) + (_lta_ema * 0.995);
+    _sta_ema = (energy * 0.1f) + (_sta_ema * 0.9f);
+    _lta_ema = (energy * 0.005f) + (_lta_ema * 0.995f);
 
     // Lacak noise floor saat kondisi tenang (pga < 0.04g)
     if (pga < 0.04f) {
@@ -312,9 +333,9 @@ readGasSensor();
   }
 
   // TRACK 1: Algoritma Klasik (Heuristik Fisika Seismik)
-  // Frekuensi seismik gempa tektonik <= 15 Hz; deteksi getaran Shindo 1-3 (PGA >= 0.0035g, STA/LTA >= 1.25)
+  // Frekuensi seismik gempa tektonik <= 15 Hz; deteksi getaran Shindo 1-3 (PGA >= 0.0040g, STA/LTA >= 1.50)
   bool is_seismic_freq = (_current_hz == 0 || _current_hz <= 15);
-  bool is_earthquake_spike = (pga >= 0.0035f && is_seismic_freq && ratio >= 1.25f) || (pga >= 0.05f && is_seismic_freq); 
+  bool is_earthquake_spike = (pga >= 0.0040f && is_seismic_freq && ratio >= 1.50f) || (pga >= 0.05f && is_seismic_freq && ratio >= 2.0f); 
 
   // TRACK 2: TinyML Shadow Mode - Berjalan Paralel Menilai Probabilitas Gempa Tanpa Menyentuh Aktuator
   static unsigned long _vibe_start_time = 0;
@@ -368,4 +389,13 @@ String SensorManager::getPose() {
   if (pitch > 75.0 && pitch < 105.0)
     return "Wall";
   return "Tilted";
+}
+
+void SensorManager::tare() {
+  _calib_sum_x = 0.0f;
+  _calib_sum_y = 0.0f;
+  _calib_sum_z = 0.0f;
+  _calib_samples_count = 0;
+  _is_calibrated = false;
+  Serial.println("[SENSOR] Tare / Kalibrasi ulang diinisiasi.");
 }

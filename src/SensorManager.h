@@ -51,6 +51,7 @@ public:
     float getTiltAngle();
     float getNoiseFloor() const { return _noise_floor_ema; }
     bool isCalibrated() const { return _is_calibrated; }
+    void tare();
 
 private:
     void readGasSensor();
