@@ -66,7 +66,7 @@ void NetworkManager::reconnectMQTT() {
             
             char statusPayload[512];
             snprintf(statusPayload, sizeof(statusPayload), 
-                "{\"status\":\"online\",\"node_id\":\"%s\",\"group_id\":\"%s\",\"lat\":%.4f,\"lon\":%.4f,\"pose\":\"%s\",\"tilt_angle\":%.1f,\"sensor_ok\":%s}",
+                "{\"status\":\"online\",\"node_id\":\"%s\",\"group_id\":\"%s\",\"lat\":%.7f,\"lon\":%.7f,\"pose\":\"%s\",\"tilt_angle\":%.1f,\"sensor_ok\":%s}",
                 _configMgr->config.node_id, _configMgr->config.group_id, _configMgr->config.lat, _configMgr->config.lon, sensorMgr.getPose().c_str(), sensorMgr.getTiltAngle(), sensorMgr.sensor_ok ? "true" : "false");
             mqtt.publish(willTopic, statusPayload, true);
             
@@ -80,7 +80,7 @@ void NetworkManager::reconnectMQTT() {
     }
 }
 
-void NetworkManager::publishEvent(float pga, float sta_lta, int freq_hz, float ax, float ay, float az, unsigned long uptime_ms, double epoch, float lat, float lon, float temp, float pres, float ml_prob, bool ml_agree) {
+void NetworkManager::publishEvent(float pga, float sta_lta, int freq_hz, float ax, float ay, float az, unsigned long uptime_ms, double epoch, double lat, double lon, float temp, float pres, float ml_prob, bool ml_agree) {
     if (!mqtt.connected()) return;
     
     StaticJsonDocument<512> doc;
