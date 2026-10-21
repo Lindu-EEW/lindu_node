@@ -379,7 +379,7 @@ void NetworkManager::publishStatus(String status, bool sensor_ok, float tilt_ang
 
     char statusPayload[512];
     snprintf(statusPayload, sizeof(statusPayload),
-        "{\"status\":\"%s\",\"node_id\":\"%s\",\"group_id\":\"%s\",\"lat\":%.4f,\"lon\":%.4f,\"pose\":\"%s\",\"tilt_angle\":%.1f,\"sensor_ok\":%s,\"fw_version\":\"%s\",\"ota_status\":\"%s\",\"motion_detected\":%s,\"records\":%zu,\"unsynced\":%zu}",
+        "{\"status\":\"%s\",\"node_id\":\"%s\",\"group_id\":\"%s\",\"lat\":%.7f,\"lon\":%.7f,\"pose\":\"%s\",\"tilt_angle\":%.1f,\"sensor_ok\":%s,\"fw_version\":\"%s\",\"ota_status\":\"%s\",\"motion_detected\":%s,\"records\":%zu,\"unsynced\":%zu}",
         status.c_str(), _configMgr->config.node_id, _configMgr->config.group_id, _configMgr->config.lat, _configMgr->config.lon, pose.c_str(), tilt_angle, sensor_ok ? "true" : "false", CURRENT_VERSION, otaUpdater.ota_status.c_str(), motion_detected ? "true" : "false",
         storageMgr.getRecordCount(), storageMgr.getUnsyncedCount());
 

@@ -15,8 +15,8 @@ void ConfigManager::loadConfig() {
     String id = prefs.getString("node_id", defaultId);
     strlcpy(config.node_id, id.c_str(), sizeof(config.node_id));
     
-    config.lat = prefs.getFloat("lat", 0.0);
-    config.lon = prefs.getFloat("lon", 0.0);
+    config.lat = prefs.getDouble("lat", 0.0);
+    config.lon = prefs.getDouble("lon", 0.0);
     
     String srv = prefs.getString("mqtt_srv", "192.168.68.105");
     strlcpy(config.mqtt_server, srv.c_str(), sizeof(config.mqtt_server));
@@ -31,8 +31,8 @@ void ConfigManager::loadConfig() {
 void ConfigManager::saveConfig() {
     prefs.putString("node_id", config.node_id);
     prefs.putString("group_id", config.group_id);
-    prefs.putFloat("lat", config.lat);
-    prefs.putFloat("lon", config.lon);
+    prefs.putDouble("lat", config.lat);
+    prefs.putDouble("lon", config.lon);
     prefs.putString("mqtt_srv", config.mqtt_server);
     prefs.putString("ota_repo", config.ota_repo);
 }
