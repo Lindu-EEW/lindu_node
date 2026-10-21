@@ -24,10 +24,13 @@ void ConfigManager::loadConfig() {
     String repo = prefs.getString("ota_repo", "Lindu-EEW/lindu_node");
     strlcpy(config.ota_repo, repo.c_str(), sizeof(config.ota_repo));
 
+    String gid = prefs.getString("group_id", "cluster_chiba");
+    strlcpy(config.group_id, gid.c_str(), sizeof(config.group_id));
 }
 
 void ConfigManager::saveConfig() {
     prefs.putString("node_id", config.node_id);
+    prefs.putString("group_id", config.group_id);
     prefs.putFloat("lat", config.lat);
     prefs.putFloat("lon", config.lon);
     prefs.putString("mqtt_srv", config.mqtt_server);
@@ -86,11 +89,13 @@ bool ConfigManager::startCaptivePortal() {
     WiFiManagerParameter custom_mqtt("mqtt", "Alamat IP Server MQTT", config.mqtt_server, 64);
     WiFiManagerParameter custom_lat("lat", "Koordinat GPS Latitude", latStr, 16);
     WiFiManagerParameter custom_lon("lon", "Koordinat GPS Longitude", lonStr, 16);
+    WiFiManagerParameter custom_group("group", "Cluster / Group ID", config.group_id, 32);
     WiFiManagerParameter custom_repo("repo", "Repositori OTA (User/Repo)", config.ota_repo, 64);
     
     wm.addParameter(&custom_mqtt);
     wm.addParameter(&custom_lat);
     wm.addParameter(&custom_lon);
+    wm.addParameter(&custom_group);
     wm.addParameter(&custom_repo);
 
     // ponytail: blocking 3 menit, jika gagal biarkan Watchdog mereset
@@ -104,6 +109,7 @@ bool ConfigManager::startCaptivePortal() {
     config.lat = atof(custom_lat.getValue());
     config.lon = atof(custom_lon.getValue());
     strlcpy(config.mqtt_server, custom_mqtt.getValue(), sizeof(config.mqtt_server));
+    strlcpy(config.group_id, custom_group.getValue(), sizeof(config.group_id));
     strlcpy(config.ota_repo, custom_repo.getValue(), sizeof(config.ota_repo));
     saveConfig();
 

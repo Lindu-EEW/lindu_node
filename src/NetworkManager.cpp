@@ -66,8 +66,8 @@ void NetworkManager::reconnectMQTT() {
             
             char statusPayload[512];
             snprintf(statusPayload, sizeof(statusPayload), 
-                "{\"status\":\"online\",\"node_id\":\"%s\",\"lat\":%.4f,\"lon\":%.4f,\"pose\":\"%s\",\"tilt_angle\":%.1f,\"sensor_ok\":%s}",
-                _configMgr->config.node_id, _configMgr->config.lat, _configMgr->config.lon, sensorMgr.getPose().c_str(), sensorMgr.getTiltAngle(), sensorMgr.sensor_ok ? "true" : "false");
+                "{\"status\":\"online\",\"node_id\":\"%s\",\"group_id\":\"%s\",\"lat\":%.4f,\"lon\":%.4f,\"pose\":\"%s\",\"tilt_angle\":%.1f,\"sensor_ok\":%s}",
+                _configMgr->config.node_id, _configMgr->config.group_id, _configMgr->config.lat, _configMgr->config.lon, sensorMgr.getPose().c_str(), sensorMgr.getTiltAngle(), sensorMgr.sensor_ok ? "true" : "false");
             mqtt.publish(willTopic, statusPayload, true);
             
             // Subscribe ke topik sensor spesifik dan global
@@ -84,8 +84,9 @@ void NetworkManager::publishEvent(float pga, float sta_lta, int freq_hz, float a
     if (!mqtt.connected()) return;
     
     StaticJsonDocument<512> doc;
-    doc["node_id"] = _configMgr->config.node_id;
-    doc["ts"]      = epoch;       
+    doc["node_id"]  = _configMgr->config.node_id;
+    doc["group_id"] = _configMgr->config.group_id;
+    doc["ts"]       = epoch;       
     doc["lat"]     = lat;
     doc["lon"]     = lon;
     doc["pga"]     = pga;
@@ -282,6 +283,17 @@ void NetworkManager::mqttCallback(char* topic, byte* payload, unsigned int lengt
                     instance->forcePublishStatus(); // Segera kirim update ke dashboard
                 }
             }
+        } else if (doc["cmd"] == "set_group") {
+            String target = doc["target_node"] | "all";
+            String my_id = String(instance->_configMgr->config.node_id);
+            if (target == "all" || target == my_id) {
+                if (doc.containsKey("group_id")) {
+                    strlcpy(instance->_configMgr->config.group_id, (const char*)doc["group_id"], sizeof(instance->_configMgr->config.group_id));
+                    instance->_configMgr->saveConfig();
+                    Serial.printf("[i] Perintah Sistem: SET GROUP '%s'. Memperbarui status...\n", instance->_configMgr->config.group_id);
+                    instance->forcePublishStatus();
+                }
+            }
         } else if (doc["cmd"] == "factory_reset") {
             String target = doc["target_node"] | "all";
             String my_id = String(instance->_configMgr->config.node_id);
@@ -366,8 +378,8 @@ void NetworkManager::publishStatus(String status, bool sensor_ok, float tilt_ang
 
     char statusPayload[512];
     snprintf(statusPayload, sizeof(statusPayload),
-        "{\"status\":\"%s\",\"node_id\":\"%s\",\"lat\":%.4f,\"lon\":%.4f,\"pose\":\"%s\",\"tilt_angle\":%.1f,\"sensor_ok\":%s,\"fw_version\":\"%s\",\"ota_status\":\"%s\",\"motion_detected\":%s,\"records\":%zu,\"unsynced\":%zu}",
-        status.c_str(), _configMgr->config.node_id, _configMgr->config.lat, _configMgr->config.lon, pose.c_str(), tilt_angle, sensor_ok ? "true" : "false", CURRENT_VERSION, otaUpdater.ota_status.c_str(), motion_detected ? "true" : "false",
+        "{\"status\":\"%s\",\"node_id\":\"%s\",\"group_id\":\"%s\",\"lat\":%.4f,\"lon\":%.4f,\"pose\":\"%s\",\"tilt_angle\":%.1f,\"sensor_ok\":%s,\"fw_version\":\"%s\",\"ota_status\":\"%s\",\"motion_detected\":%s,\"records\":%zu,\"unsynced\":%zu}",
+        status.c_str(), _configMgr->config.node_id, _configMgr->config.group_id, _configMgr->config.lat, _configMgr->config.lon, pose.c_str(), tilt_angle, sensor_ok ? "true" : "false", CURRENT_VERSION, otaUpdater.ota_status.c_str(), motion_detected ? "true" : "false",
         storageMgr.getRecordCount(), storageMgr.getUnsyncedCount());
 
     mqtt.publish(willTopic, statusPayload, true);

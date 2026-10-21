@@ -10,6 +10,7 @@
 #include "OTAUpdater.h"
 #include "StorageManager.h"
 #include <WiFi.h>
+#include <WiFiUdp.h>
 #include "esp_ota_ops.h"
 #include <Preferences.h>
 
@@ -114,6 +115,20 @@ unsigned long identify_until = 0;
 bool bedroom_stealth_mode = false;
 TaskHandle_t networkTaskHandle;
 
+// --- P2P LOCAL LAN INTER-NODE CONFIRMATION (UDP Port 5055) ---
+WiFiUDP p2pUdp;
+const uint16_t P2P_UDP_PORT = 5055;
+
+struct PeerTrigger {
+    char node_id[32];
+    char group_id[32];
+    float pga;
+    unsigned long received_ms;
+};
+#define MAX_PEER_RECORDS 16
+PeerTrigger peerTriggers[MAX_PEER_RECORDS];
+int peerCount = 0;
+
 // Helper: Ambil Waktu Epoch NTP
 double getEpochTime() {
     struct timeval tv;
@@ -129,8 +144,10 @@ void networkTaskCode(void* parameter) {
     configTime(0, 0, "pool.ntp.org", "time.nist.gov");
     
     pixels.begin();
+    p2pUdp.begin(P2P_UDP_PORT);
+    Serial.printf("[P2P LAN] UDP Listener aktif di port %u (Grup: %s)\n", P2P_UDP_PORT, configMgr.config.group_id);
     pinMode(BUZZER_PIN, OUTPUT);
-    pinMode(BUZZER_PIN, OUTPUT); digitalWrite(BUZZER_PIN, BUZZER_OFF); // MATI (lihat definisi BUZZER_OFF per varian board)
+    digitalWrite(BUZZER_PIN, BUZZER_OFF); // MATI (lihat definisi BUZZER_OFF per varian board)
 
 #if USE_SERVO_VALVE
     // ESP32-S3 PWM Timer Allocation untuk Servo (Hanya alokasi, tidak di-enable)
@@ -158,6 +175,85 @@ void networkTaskCode(void* parameter) {
     
     while(1) {
         networkMgr.loop(); // Handle rutin MQTT
+        
+        // ========================================================
+        // P2P LOCAL LAN INTER-NODE CONFIRMATION (UDP Port 5055)
+        // ========================================================
+        if (WiFi.status() == WL_CONNECTED) {
+            int pSize = p2pUdp.parsePacket();
+            if (pSize > 0) {
+                char pBuf[256];
+                int pLen = p2pUdp.read(pBuf, sizeof(pBuf) - 1);
+                if (pLen > 0) {
+                    pBuf[pLen] = '\0';
+                    StaticJsonDocument<256> pDoc;
+                    DeserializationError pErr = deserializeJson(pDoc, pBuf);
+                    if (!pErr) {
+                        const char* pType = pDoc["type"];
+                        const char* pNode = pDoc["node"];
+                        const char* pGroup = pDoc["group"];
+                        float pPga = pDoc["pga"] | 0.0f;
+                        
+                        // Hanya proses jika paket bertipe QUAKE, dari grup yang sama, dan bukan diri sendiri
+                        if (pType && strcmp(pType, "QUAKE") == 0 &&
+                            pGroup && strcmp(pGroup, configMgr.config.group_id) == 0 &&
+                            pNode && strcmp(pNode, configMgr.config.node_id) != 0) {
+                            
+                            unsigned long now_ms = millis();
+                            bool found = false;
+                            for (int i = 0; i < peerCount; i++) {
+                                if (strcmp(peerTriggers[i].node_id, pNode) == 0) {
+                                    peerTriggers[i].pga = pPga;
+                                    peerTriggers[i].received_ms = now_ms;
+                                    found = true;
+                                    break;
+                                }
+                            }
+                            if (!found && peerCount < MAX_PEER_RECORDS) {
+                                strlcpy(peerTriggers[peerCount].node_id, pNode, sizeof(peerTriggers[peerCount].node_id));
+                                strlcpy(peerTriggers[peerCount].group_id, pGroup, sizeof(peerTriggers[peerCount].group_id));
+                                peerTriggers[peerCount].pga = pPga;
+                                peerTriggers[peerCount].received_ms = now_ms;
+                                peerCount++;
+                            }
+                            Serial.printf("[P2P LAN] Konfirmasi getaran dari %s (PGA: %.4fG) dalam grup '%s'!\n",
+                                          pNode, pPga, pGroup);
+                        }
+                    }
+                }
+            }
+            
+            // Evaluasi Quorum LAN Lokal (Zero-Server / Edge Inter-Node Consensus)
+            unsigned long now_ms = millis();
+            int recent_peers = 0;
+            float max_peer_pga = 0.0f;
+            for (int i = 0; i < peerCount; i++) {
+                if (now_ms - peerTriggers[i].received_ms <= 5000) {
+                    recent_peers++;
+                    if (peerTriggers[i].pga > max_peer_pga) max_peer_pga = peerTriggers[i].pga;
+                }
+            }
+            bool self_active = (local_alarm_until > 0 && millis() < local_alarm_until);
+            int total_group_active = recent_peers + (self_active ? 1 : 0);
+            
+            // KONSENSUS LOKAL TERCAPAI:
+            // 1. Quorum 3 Node dalam 1 Grup (Tri-Node Quorum)
+            // 2. ATAU Server Offline dan >= 2 Node dalam 1 Grup terpicu (Edge Fail-Safe)
+            if (global_alarm_until == 0 || millis() >= global_alarm_until) {
+                if (total_group_active >= 3 || (!networkMgr.isConnected() && total_group_active >= 2)) {
+                    Serial.printf("\n🚨 [P2P LAN QUORUM] %d Node di grup '%s' bergetar serentak! Memicu alarm darurat lokal langsung!\n",
+                                  total_group_active, configMgr.config.group_id);
+                    char qLog[128];
+                    snprintf(qLog, sizeof(qLog), "[P2P LAN QUORUM] %d Node terkonfirmasi serentak di grup %s (Max PGA: %.4fG)! Alarm lokal dipicu.",
+                             total_group_active, configMgr.config.group_id, max_peer_pga);
+                    networkMgr.publishLog(qLog);
+                    
+                    global_alarm_until = millis() + 15000; // Nyalakan sirine & LED merah 15 detik
+                    is_valve_locked = true;                // Kunci valve keselamatan
+                    actPrefs.putBool("valve_locked", true);
+                }
+            }
+        }
         
         // Heartbeat status setiap 10 detik
         static unsigned long last_status = 0;
@@ -391,14 +487,34 @@ void networkTaskCode(void* parameter) {
         if (xQueueReceive(eventQueue, &ev, 0) == pdTRUE) {
             local_latest_pga = ev.pga;
             
-            // Filter Seismik: Gempa bumi tektonik riil dominan pada frekuensi rendah (<= 15 Hz).
-            // Hentakan langkah kaki, pintu dibanting, atau meja tersenggol berfrekuensi tinggi (> 18-35 Hz)
-            // dibuang agar tidak membunyikan buzzer atau memicu false alarm lokal.
-            bool is_seismic_frequency = (ev.freq_hz == 0 || ev.freq_hz <= 15);
+            // Filter Seismik Multi-Tier: Gempa bumi tektonik riil dominan pada frekuensi rendah (<= 28 Hz).
+            // Hentakan langkah kaki keras, pintu dibanting, atau meja tersenggol berfrekuensi tinggi (> 30-50 Hz)
+            // difilter, dan dikonfirmasi silang lewat konsensus multi-node.
+            bool is_seismic_frequency = (ev.freq_hz == 0 || ev.freq_hz <= 28);
 
-            if (ev.pga > 0.05 && is_seismic_frequency) {
-                local_alarm_until = millis() + 5000; // Tahan warna pink selama 5 detik
+            // KATEGORI DETEKSI GEMPA DUA TINGKAT (MULTI-TIER):
+            // 1. Gempa Kuat / Merusak (Shindo 4+, PGA >= 0.05g): Butuh tindakan aktuator & alarm
+            // 2. Gempa Ringan / Terasa (Shindo 1-3, PGA >= 0.0035g, STA/LTA >= 1.15): Direkam untuk katalog & AI
+            bool is_severe_earthquake = (ev.pga >= 0.05f && is_seismic_frequency) || (ev.ml_prob >= 0.65f);
+            bool is_minor_earthquake = (ev.pga >= 0.0035f && is_seismic_frequency && ev.ratio >= 1.15f) || (ev.ml_prob >= 0.35f);
+            bool is_significant_shake = (ev.pga >= 0.020f && ev.ratio >= 1.5f);
+            bool is_offline = !networkMgr.isConnected();
+
+            if (is_severe_earthquake || is_minor_earthquake) {
+                local_alarm_until = millis() + 5000; // Tahan warna pink / status aktif selama 5 detik
                 
+                // BROADCAST P2P UDP KE LAN (Inter-Node Local Confirmation):
+                // Mengirim info getaran ke seluruh node di jaringan lokal dalam 1-3 ms
+                if (WiFi.status() == WL_CONNECTED) {
+                    char udpBuf[160];
+                    snprintf(udpBuf, sizeof(udpBuf), 
+                             "{\"type\":\"QUAKE\",\"node\":\"%s\",\"group\":\"%s\",\"pga\":%.4f,\"ts\":%.2f}",
+                             configMgr.config.node_id, configMgr.config.group_id, ev.pga, getEpochTime());
+                    p2pUdp.beginPacket(IPAddress(255, 255, 255, 255), P2P_UDP_PORT);
+                    p2pUdp.write((const uint8_t*)udpBuf, strlen(udpBuf));
+                    p2pUdp.endPacket();
+                }
+
                 // ========== OFFLINE FAIL-SAFE (LONE WOLF MODE) ==========
                 // Jika MQTT server mati DAN getaran AMAT SANGAT BRUTAL (PGA > 0.60G) dengan spektrum seismik valid
                 if (!networkMgr.isConnected() && ev.pga > 0.60 && is_seismic_frequency) {
@@ -409,29 +525,22 @@ void networkTaskCode(void* parameter) {
                     actPrefs.putBool("valve_locked", true);
                 }
                 
-                // TICK Dinamis: Volume/Intensitas diwakili oleh durasi (Haptic Feedback)
-                static unsigned long last_tick_time = 0;
-                if (!is_global_alarm && (millis() - last_tick_time > 500)) { 
-                    last_tick_time = millis();
-                    
-                    // Semakin besar getaran (PGA), semakin lama durasi beep-nya
-                    int beep_duration = (int)(ev.pga * 40.0);
-                    if (beep_duration < 5) beep_duration = 5;     // Getaran pelan = 5ms (Tik kecil)
-                    if (beep_duration > 100) beep_duration = 100; // Getaran keras = 100ms (Bip panjang/keras)
-                    
-                    digitalWrite(BUZZER_PIN, BUZZER_ON);
-                    vTaskDelay(pdMS_TO_TICKS(beep_duration));
-                    digitalWrite(BUZZER_PIN, BUZZER_OFF);
+                // TICK Dinamis: Volume/Intensitas diwakili oleh durasi (Haptic Feedback) untuk getaran terasa
+                if (ev.pga > 0.05) {
+                    static unsigned long last_tick_time = 0;
+                    if (!is_global_alarm && (millis() - last_tick_time > 500)) { 
+                        last_tick_time = millis();
+                        
+                        int beep_duration = (int)(ev.pga * 40.0);
+                        if (beep_duration < 5) beep_duration = 5;     // Getaran pelan = 5ms (Tik kecil)
+                        if (beep_duration > 100) beep_duration = 100; // Getaran keras = 100ms (Bip panjang/keras)
+                        
+                        digitalWrite(BUZZER_PIN, BUZZER_ON);
+                        vTaskDelay(pdMS_TO_TICKS(beep_duration));
+                        digitalWrite(BUZZER_PIN, BUZZER_OFF);
+                    }
                 }
             }
-
-            // KATEGORI DETEKSI GEMPA DUA TINGKAT (MULTI-TIER):
-            // 1. Gempa Kuat / Merusak (Shindo 4+, PGA >= 0.05g): Butuh tindakan aktuator & alarm
-            // 2. Gempa Ringan / Terasa (Shindo 1-3, PGA >= 0.0035g, STA/LTA >= 1.15): Direkam untuk katalog & AI
-            bool is_severe_earthquake = (ev.pga >= 0.05f && is_seismic_frequency) || (ev.ml_prob >= 0.65f);
-            bool is_minor_earthquake = (ev.pga >= 0.0035f && is_seismic_frequency && ev.ratio >= 1.15f) || (ev.ml_prob >= 0.35f);
-            bool is_significant_shake = (ev.pga >= 0.020f && ev.ratio >= 1.5f);
-            bool is_offline = !networkMgr.isConnected();
 
             // PEREKAM BLACKBOX GEMPA:
             // Rekam getaran gempa ke flash storage (LittleFS) saat offline maupun online.

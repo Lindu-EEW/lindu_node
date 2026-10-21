@@ -8,6 +8,7 @@ struct LinduConfig {
     char mqtt_server[64];
     char ota_repo[64];
     char node_id[32];
+    char group_id[32]; // ID grup konsensus cluster (default: "cluster_chiba")
     float lat;
     float lon;
     bool is_provisioned;
