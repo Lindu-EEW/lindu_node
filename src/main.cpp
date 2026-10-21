@@ -391,12 +391,12 @@ void networkTaskCode(void* parameter) {
         if (xQueueReceive(eventQueue, &ev, 0) == pdTRUE) {
             local_latest_pga = ev.pga;
             
-            // Filter Seismik: Gempa bumi tektonik riil dominan pada frekuensi rendah (<= 8 Hz).
-            // Hentakan langkah kaki, pintu dibanting, atau meja tersenggol berfrekuensi tinggi (> 10-35 Hz)
+            // Filter Seismik: Gempa bumi tektonik riil dominan pada frekuensi rendah (<= 15 Hz).
+            // Hentakan langkah kaki, pintu dibanting, atau meja tersenggol berfrekuensi tinggi (> 18-35 Hz)
             // dibuang agar tidak membunyikan buzzer atau memicu false alarm lokal.
-            bool is_seismic_frequency = (ev.freq_hz == 0 || ev.freq_hz <= 8);
+            bool is_seismic_frequency = (ev.freq_hz == 0 || ev.freq_hz <= 15);
 
-            if (ev.pga > 0.12 && is_seismic_frequency) {
+            if (ev.pga > 0.05 && is_seismic_frequency) {
                 local_alarm_until = millis() + 5000; // Tahan warna pink selama 5 detik
                 
                 // ========== OFFLINE FAIL-SAFE (LONE WOLF MODE) ==========
@@ -424,22 +424,26 @@ void networkTaskCode(void* parameter) {
                     digitalWrite(BUZZER_PIN, BUZZER_OFF);
                 }
             }
-            bool is_earthquake = (ev.pga >= 0.12 && is_seismic_frequency) || (ev.ml_prob >= 0.50f);
-            bool is_significant_shake = (ev.pga >= 0.05 && ev.ratio >= 2.0);
+
+            // KATEGORI DETEKSI GEMPA DUA TINGKAT (MULTI-TIER):
+            // 1. Gempa Kuat / Merusak (Shindo 4+, PGA >= 0.05g): Butuh tindakan aktuator & alarm
+            // 2. Gempa Ringan / Terasa (Shindo 1-3, PGA >= 0.0035g, STA/LTA >= 1.15): Direkam untuk katalog & AI
+            bool is_severe_earthquake = (ev.pga >= 0.05f && is_seismic_frequency) || (ev.ml_prob >= 0.65f);
+            bool is_minor_earthquake = (ev.pga >= 0.0035f && is_seismic_frequency && ev.ratio >= 1.15f) || (ev.ml_prob >= 0.35f);
+            bool is_significant_shake = (ev.pga >= 0.020f && ev.ratio >= 1.5f);
             bool is_offline = !networkMgr.isConnected();
 
             // PEREKAM BLACKBOX GEMPA:
             // Rekam getaran gempa ke flash storage (LittleFS) saat offline maupun online.
-            // Data disimpan dalam format CSV & JSONL sehingga aman dari gangguan jaringan
-            // dan dapat langsung diekspor untuk dataset pembelajaran mesin (TinyML).
-            if (is_earthquake || (is_offline && is_significant_shake)) {
+            // Kini aktif untuk gempa ringan (Shindo 1-3, seperti Chiba M4.0) maupun gempa kuat.
+            if (is_severe_earthquake || is_minor_earthquake || (is_offline && is_significant_shake)) {
                 storageMgr.recordEarthquake(
                     getEpochTime(), ev.uptime_ms,
                     ev.pga, ev.ratio, ev.freq_hz, ev.rms,
                     ev.accel_x, ev.accel_y, ev.accel_z,
                     1.0f, 0.5f,
                     ev.ml_prob, ev.ml_agree,
-                    is_earthquake, is_offline
+                    is_severe_earthquake || is_minor_earthquake, is_offline
                 );
             }
 

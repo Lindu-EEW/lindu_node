@@ -107,7 +107,7 @@ bool StorageManager::recordEarthquake(
     // Selama getaran gempa berlangsung, jangan tulis setiap 100ms agar flash tidak cepat aus.
     // Tulis jika sudah lewat 800ms sejak rekaman terakhir, ATAU jika PGA melonjak signifikan (+20% dari puncak sebelumnya).
     unsigned long now = millis();
-    bool is_new_peak = (pga > _last_saved_pga * 1.20f && pga > 0.08f);
+    bool is_new_peak = (pga > _last_saved_pga * 1.20f && pga > 0.005f);
     if ((now - _last_save_time < 800) && !is_new_peak) {
         return false;
     }
