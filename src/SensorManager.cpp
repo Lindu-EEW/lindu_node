@@ -257,12 +257,20 @@ readGasSensor();
         _dc_y = _calib_sum_y / (float)CALIBRATION_SAMPLE_TARGET;
         _dc_z = _calib_sum_z / (float)CALIBRATION_SAMPLE_TARGET;
         _is_calibrated = true;
+        _prev_raw_x = accel.acceleration.x;
+        _prev_raw_y = accel.acceleration.y;
+        _prev_raw_z = accel.acceleration.z;
+        _stationary_samples = 0;
+        _sta_ema = 0.0f;
+        _lta_ema = 0.0001f;
+        _zcr_count = 0;
         Serial.printf("[SENSOR] Kalibrasi Selesai! Baseline DC: (%.3f, %.3f, %.3f) m/s^2 (%d sampel)\n",
                       _dc_x, _dc_y, _dc_z, CALIBRATION_SAMPLE_TARGET);
         char c_msg[128];
         snprintf(c_msg, sizeof(c_msg), "[CALIB OK] Baseline Tare Selesai: (%.3f, %.3f, %.3f) m/s^2, Tilt: %.1f° (%s)",
                  _dc_x, _dc_y, _dc_z, getTiltAngle(), getPose().c_str());
         networkMgr.publishLog(c_msg);
+        networkMgr.forcePublishStatus();
       } else {
         // Tahan pengiriman data dan perhitungan PGA selama kalibrasi
         return;
@@ -283,7 +291,39 @@ readGasSensor();
       _dc_x = (accel.acceleration.x * alpha_dc) + (_dc_x * (1.0f - alpha_dc));
       _dc_y = (accel.acceleration.y * alpha_dc) + (_dc_y * (1.0f - alpha_dc));
       _dc_z = (accel.acceleration.z * alpha_dc) + (_dc_z * (1.0f - alpha_dc));
+      _stationary_samples = 0;
+    } else {
+      // Jika terjadi pergeseran orientasi / node tumbang / dipindahkan (inst_pga >= 0.015g),
+      // periksa apakah sensor sudah diam di posisi baru (bukan gempa yang dinamis/bergoyang):
+      float total_g = sqrt(accel.acceleration.x * accel.acceleration.x +
+                           accel.acceleration.y * accel.acceleration.y +
+                           accel.acceleration.z * accel.acceleration.z) / 9.80665f;
+      float sample_jitter = (abs(accel.acceleration.x - _prev_raw_x) +
+                             abs(accel.acceleration.y - _prev_raw_y) +
+                             abs(accel.acceleration.z - _prev_raw_z)) / 9.80665f;
+
+      // Ciri sensor diam di posisi baru:
+      // 1. Total magnitudo gravitasi bumi murni ~1.0g (antara 0.80g dan 1.20g)
+      // 2. Jitter antar-sampel sangat kecil (< 0.025g)
+      if (total_g >= 0.80f && total_g <= 1.20f && sample_jitter < 0.025f) {
+        _stationary_samples++;
+        // 250 sampel @ 100Hz = 2.5 detik diam stabil di posisi baru
+        if (_stationary_samples >= 250) {
+          Serial.printf("[SENSOR] Auto-Tare! Node stabil di orientasi baru (offset: %.3fG). Menginisiasi tare...\n", inst_pga);
+          networkMgr.publishLog("[AUTO-TARE] Orientasi baru stabil terdeteksi (diam 2.5s). Menjalankan auto-tare...");
+          tare();
+          _stationary_samples = 0;
+          return;
+        }
+      } else {
+        // Jika sensor masih bergerak/bergoyang (atau sedang gempa asli), reset counter
+        _stationary_samples = 0;
+      }
     }
+
+    _prev_raw_x = accel.acceleration.x;
+    _prev_raw_y = accel.acceleration.y;
+    _prev_raw_z = accel.acceleration.z;
 
     dyn_x = accel.acceleration.x - _dc_x;
     dyn_y = accel.acceleration.y - _dc_y;
@@ -396,6 +436,7 @@ void SensorManager::tare() {
   _calib_sum_y = 0.0f;
   _calib_sum_z = 0.0f;
   _calib_samples_count = 0;
+  _stationary_samples = 0;
   _is_calibrated = false;
   Serial.println("[SENSOR] Tare / Kalibrasi ulang diinisiasi.");
 }

@@ -77,6 +77,12 @@ private:
     float _calib_sum_y = 0.0f;
     float _calib_sum_z = 0.0f;
     float _noise_floor_ema = 0.005f;
+
+    // Auto-Tare saat orientasi fisik berubah / node tumbang tapi dalam kondisi diam
+    float _prev_raw_x = 0.0f;
+    float _prev_raw_y = 0.0f;
+    float _prev_raw_z = 0.0f;
+    unsigned int _stationary_samples = 0;
     
     int _zcr_count = 0;
     float _last_dyn_z = 0.0;
