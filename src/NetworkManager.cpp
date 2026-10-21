@@ -277,8 +277,8 @@ void NetworkManager::mqttCallback(char* topic, byte* payload, unsigned int lengt
             String my_id = String(instance->_configMgr->config.node_id);
             if (target == "all" || target == my_id) {
                 if (doc.containsKey("lat") && doc.containsKey("lon")) {
-                    instance->_configMgr->config.lat = doc["lat"];
-                    instance->_configMgr->config.lon = doc["lon"];
+                    instance->_configMgr->config.lat = doc["lat"].as<double>();
+                    instance->_configMgr->config.lon = doc["lon"].as<double>();
                     instance->_configMgr->saveConfig();
                     Serial.println("[i] Perintah Sistem: SET LOCATION. Koordinat diperbarui!");
                     instance->forcePublishStatus(); // Segera kirim update ke dashboard

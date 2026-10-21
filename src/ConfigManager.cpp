@@ -16,7 +16,15 @@ void ConfigManager::loadConfig() {
     strlcpy(config.node_id, id.c_str(), sizeof(config.node_id));
     
     config.lat = prefs.getDouble("lat", 0.0);
+    if (config.lat == 0.0) {
+        config.lat = (double)prefs.getFloat("lat", 35.5402112);
+        if (config.lat == 0.0) config.lat = 35.5402112;
+    }
     config.lon = prefs.getDouble("lon", 0.0);
+    if (config.lon == 0.0) {
+        config.lon = (double)prefs.getFloat("lon", 139.5178194);
+        if (config.lon == 0.0) config.lon = 139.5178194;
+    }
     
     String srv = prefs.getString("mqtt_srv", "192.168.68.105");
     strlcpy(config.mqtt_server, srv.c_str(), sizeof(config.mqtt_server));
