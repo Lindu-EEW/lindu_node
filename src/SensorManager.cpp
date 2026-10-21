@@ -400,15 +400,13 @@ readGasSensor();
   bool ml_detect = (ml_prob >= 0.35f);
   bool ml_agree = (ml_detect == is_earthquake_spike);
 
-  if ( (is_earthquake_spike && millis() - _telemetry_last_send >= 100) || (millis() - _telemetry_last_send >= 1000) ) {
+  // Telemetri hanya dikirim saat terdeteksi guncangan (burst 100 ms). Tidak ada telemetri standby 1 detik:
+  // kondisi tenang cukup dilaporkan lewat heartbeat status setiap 10 detik.
+  if (is_earthquake_spike && millis() - _telemetry_last_send >= 100) {
     SensorEvent ev = {pga,   ratio, _current_hz, rms,  dyn_x,
                       dyn_y, dyn_z, millis(),    temp, pres,
                       ml_prob, ml_agree};
-    if (is_earthquake_spike) {
-      xQueueSendToFront(_eventQueue, &ev, 0);
-    } else {
-      xQueueSend(_eventQueue, &ev, 0);
-    }
+    xQueueSendToFront(_eventQueue, &ev, 0);
     _telemetry_last_send = millis();
   }
 }
