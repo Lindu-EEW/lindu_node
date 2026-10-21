@@ -236,22 +236,39 @@ void networkTaskCode(void* parameter) {
             }
             bool self_active = (last_self_trigger_ms > 0 && (millis() - last_self_trigger_ms <= 5000));
             int total_group_active = recent_peers + (self_active ? 1 : 0);
+            if (self_active && local_latest_pga > max_peer_pga) {
+                max_peer_pga = local_latest_pga;
+            }
             
             // KONSENSUS LOKAL TERCAPAI:
             // 1. Quorum 3 Node dalam 1 Grup (Tri-Node Quorum)
             // 2. ATAU Server Offline dan >= 2 Node dalam 1 Grup terpicu (Edge Fail-Safe)
             if (global_alarm_until == 0 || millis() >= global_alarm_until) {
                 if (total_group_active >= 3 || (!networkMgr.isConnected() && total_group_active >= 2)) {
-                    Serial.printf("\n🚨 [P2P LAN QUORUM] %d Node di grup '%s' bergetar serentak! Memicu alarm darurat lokal langsung!\n",
-                                  total_group_active, configMgr.config.group_id);
-                    char qLog[128];
-                    snprintf(qLog, sizeof(qLog), "[P2P LAN QUORUM] %d Node terkonfirmasi serentak di grup %s (Max PGA: %.4fG)! Alarm lokal dipicu.",
-                             total_group_active, configMgr.config.group_id, max_peer_pga);
-                    networkMgr.publishLog(qLog);
-                    
-                    global_alarm_until = millis() + 15000; // Nyalakan sirine & LED merah 15 detik
-                    is_valve_locked = true;                // Kunci valve keselamatan
-                    actPrefs.putBool("valve_locked", true);
+                    if (max_peer_pga >= 0.05f) {
+                        Serial.printf("\n🚨 [P2P LAN QUORUM] %d Node di grup '%s' bergetar serentak (PGA %.4fG)! Memicu alarm darurat & solenoid valve!\n",
+                                      total_group_active, configMgr.config.group_id, max_peer_pga);
+                        char qLog[128];
+                        snprintf(qLog, sizeof(qLog), "[P2P LAN QUORUM] %d Node terkonfirmasi serentak di grup %s (Max PGA: %.4fG)! Alarm lokal dipicu.",
+                                 total_group_active, configMgr.config.group_id, max_peer_pga);
+                        networkMgr.publishLog(qLog);
+                        
+                        global_alarm_until = millis() + 15000; // Nyalakan sirine & LED merah 15 detik
+                        is_valve_locked = true;                // Kunci valve keselamatan
+                        actPrefs.putBool("valve_locked", true);
+                    } else {
+                        // Micro-tremor / Guncangan Ringan (PGA < 0.05G): Quorum terverifikasi aman, tidak perlu sirine / pemadaman katup gas
+                        static unsigned long last_advisory_ms = 0;
+                        if (millis() - last_advisory_ms >= 10000) {
+                            last_advisory_ms = millis();
+                            Serial.printf("\nℹ️ [P2P LAN ADVISORY] %d Node di grup '%s' mencatat getaran ringan terverifikasi (PGA %.4fG < 0.05G). Status aman.\n",
+                                          total_group_active, configMgr.config.group_id, max_peer_pga);
+                            char qLog[128];
+                            snprintf(qLog, sizeof(qLog), "[P2P LAN ADVISORY] %d Node serentak di grup %s (PGA: %.4fG). Status aman (micro-tremor).",
+                                     total_group_active, configMgr.config.group_id, max_peer_pga);
+                            networkMgr.publishLog(qLog);
+                        }
+                    }
                 }
             }
         }
