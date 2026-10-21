@@ -175,6 +175,7 @@ void NetworkManager::mqttCallback(char* topic, byte* payload, unsigned int lengt
             // is_global_alarm true) langsung berhenti dan tidak menimpa balik is_door_locked.
             Serial.println("[i] Perintah Sistem: ALARM DIBATALKAN. Mengembalikan aktuator ke kondisi normal.");
             global_alarm_until = 0;
+            local_alarm_until = 0;
             is_valve_locked = false;
             actPrefs.putBool("valve_locked", false);
 #if !ARDUINO_USB_CDC_ON_BOOT

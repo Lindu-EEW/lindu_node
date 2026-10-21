@@ -128,6 +128,7 @@ struct PeerTrigger {
 #define MAX_PEER_RECORDS 16
 PeerTrigger peerTriggers[MAX_PEER_RECORDS];
 int peerCount = 0;
+unsigned long last_self_trigger_ms = 0;
 
 // Helper: Ambil Waktu Epoch NTP
 double getEpochTime() {
@@ -233,7 +234,7 @@ void networkTaskCode(void* parameter) {
                     if (peerTriggers[i].pga > max_peer_pga) max_peer_pga = peerTriggers[i].pga;
                 }
             }
-            bool self_active = (local_alarm_until > 0 && millis() < local_alarm_until);
+            bool self_active = (last_self_trigger_ms > 0 && (millis() - last_self_trigger_ms <= 5000));
             int total_group_active = recent_peers + (self_active ? 1 : 0);
             
             // KONSENSUS LOKAL TERCAPAI:
@@ -501,7 +502,13 @@ void networkTaskCode(void* parameter) {
             bool is_offline = !networkMgr.isConnected();
 
             if (is_severe_earthquake || is_minor_earthquake) {
-                local_alarm_until = millis() + 5000; // Tahan warna pink / status aktif selama 5 detik
+                last_self_trigger_ms = millis();
+                
+                // HANYA gempa kuat / guncangan keras (PGA >= 0.05g) yang menyalakan indikator LED Pink/Ungu
+                // Gempa mikro / getaran halus (0.0035g - 0.02g) tetap bernafas Hijau tenang agar tidak silau/mengganggu
+                if (is_severe_earthquake) {
+                    local_alarm_until = millis() + 5000;
+                }
                 
                 // BROADCAST P2P UDP KE LAN (Inter-Node Local Confirmation):
                 // Mengirim info getaran ke seluruh node di jaringan lokal dalam 1-3 ms
