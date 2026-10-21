@@ -149,6 +149,18 @@ void OTAUpdater::checkForUpdate() {
     } else {
         ota_status = "ERROR_API_" + String(httpCode);
         Serial.printf("[OTA] Gagal menghubungi GitHub API. Kode: %d\n", httpCode);
+        if (httpCode == 403) {
+            http.end();
+            Serial.println("[OTA] GitHub API Rate Limited (403). Menggunakan Direct Asset Download Fallback...");
+            String bin_url = String("https://github.com/") + configMgr.config.ota_repo + "/releases/latest/download/firmware_" + BOARD_VARIANT + ".bin";
+            if (performUpdate(bin_url.c_str(), "latest")) {
+                ota_status = "UPDATE_SUCCESS_RESTARTING"; networkMgr.forcePublishStatus();
+                networkMgr.publishLog("OTA Direct Fallback Sukses! Alat segera di-restart.");
+                delay(1500);
+                ESP.restart();
+                return;
+            }
+        }
     }
     http.end();
 }
