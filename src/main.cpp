@@ -264,9 +264,9 @@ void networkTaskCode(void* parameter) {
             }
         }
         
-        // Heartbeat status setiap 10 detik
+        // Heartbeat status setiap 3 detik (dipercepat agar status fleet dan PIR lebih responsif)
         static unsigned long last_status = 0;
-        if (millis() - last_status >= 10000) {
+        if (millis() - last_status >= 3000) {
             networkMgr.publishStatus("online", sensorMgr.sensor_ok, sensorMgr.getTiltAngle(), sensorMgr.getPose(), is_motion_detected);
             last_status = millis();
         }
@@ -492,8 +492,8 @@ void networkTaskCode(void* parameter) {
             }
         }
 
-        // Cek apakah ada data sensor di antrean (Non-Blocking)
-        if (xQueueReceive(eventQueue, &ev, 0) == pdTRUE) {
+        // Cek dan kirim antrean data sensor secara non-blocking
+        while (xQueueReceive(eventQueue, &ev, 0) == pdTRUE) {
             local_latest_pga = ev.pga;
             
             // Filter Seismik Multi-Tier: Gempa bumi tektonik riil dominan pada frekuensi rendah (<= 15 Hz).
@@ -696,8 +696,8 @@ void setup() {
     }
     Serial.println("[OK] WiFi Terhubung.");
 
-    // 2. Buat Antrean Pesan Lintas-Core (10 slot pesan @ ~40 byte)
-    eventQueue = xQueueCreate(10, sizeof(SensorEvent));
+    // 2. Buat Antrean Pesan Lintas-Core (30 slot pesan @ ~48 byte)
+    eventQueue = xQueueCreate(30, sizeof(SensorEvent));
 
     // 3. Pisahkan Tugas Berat ke Core 0
     xTaskCreatePinnedToCore(
