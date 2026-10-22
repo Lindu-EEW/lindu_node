@@ -261,8 +261,8 @@ readGasSensor();
         _prev_raw_y = accel.acceleration.y;
         _prev_raw_z = accel.acceleration.z;
         _stationary_samples = 0;
-        _sta_ema = 0.0f;
-        _lta_ema = 0.0001f;
+        _sta_ema = 0.00001f;
+        _lta_ema = 0.00001f;
         _zcr_count = 0;
         Serial.printf("[SENSOR] Kalibrasi Selesai! Baseline DC: (%.3f, %.3f, %.3f) m/s^2 (%d sampel)\n",
                       _dc_x, _dc_y, _dc_z, CALIBRATION_SAMPLE_TARGET);
@@ -340,26 +340,29 @@ readGasSensor();
     }
 
     float raw_pga = sqrt(dyn_x * dyn_x + dyn_y * dyn_y + dyn_z * dyn_z) / 9.80665f;
-    // Deadband peredam noise sensor miring:
-    // Fluktuasi MEMS diam di bawah batas sensor diam (0.0030g) di-clamp bersih ke 0.000g
-    if (raw_pga < 0.0030f) {
+    // Deadband peredam noise MEMS diam (0.0045g) di-clamp bersih ke 0.000g untuk display seismogram PGA
+    if (raw_pga < 0.0045f) {
       pga = 0.0f;
     } else {
       pga = raw_pga;
     }
-    float energy = pga * pga;
+
+    // Opsi A (Seismologi Murni):
+    // Energi STA/LTA dihitung langsung dari akselerasi dinamik aktual (raw_pga),
+    // sehingga rasio STA/LTA ternormalisasi secara mandiri terhadap noise floor masing-masing node (~1.0).
+    float energy = raw_pga * raw_pga;
     rms = sqrt((dyn_x * dyn_x + dyn_y * dyn_y + dyn_z * dyn_z) / 3.0f) / 9.80665f;
 
     _sta_ema = (energy * 0.1f) + (_sta_ema * 0.9f);
     _lta_ema = (energy * 0.005f) + (_lta_ema * 0.995f);
 
-    // Lacak noise floor saat kondisi tenang (pga < 0.04g)
-    if (pga < 0.04f) {
-      _noise_floor_ema = (pga * 0.005f) + (_noise_floor_ema * 0.995f);
+    // Lacak noise floor saat kondisi tenang (raw_pga < 0.04g)
+    if (raw_pga < 0.04f) {
+      _noise_floor_ema = (raw_pga * 0.005f) + (_noise_floor_ema * 0.995f);
     }
   }
 
-  float safe_lta = _lta_ema < 0.00001f ? 0.00001f : _lta_ema;
+  float safe_lta = _lta_ema < 1e-7f ? 1e-7f : _lta_ema;
   float ratio = _sta_ema / safe_lta;
 
   float temp = 0.0;
