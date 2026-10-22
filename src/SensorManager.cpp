@@ -340,32 +340,26 @@ readGasSensor();
     }
 
     float raw_pga = sqrt(dyn_x * dyn_x + dyn_y * dyn_y + dyn_z * dyn_z) / 9.80665f;
-    // Deadband peredam noise MEMS diam per jenis sensor:
-    // LSM6DS3 sangat hening ~0.0030g, MPU-6050 direct I2C ~0.0080g
-    float deadband = (accel_type == ACCEL_LSM6DS3) ? 0.0035f : 0.0080f;
-    if (raw_pga < deadband) {
-      pga = 0.0f;
-    } else {
-      pga = raw_pga;
-    }
+    // PURE SCIENTIFIC DATA (UNCLAMPED):
+    // PGA mengirimkan akselerasi dinamik fisik riil tanpa pemotongan buatan,
+    // mempertahankan denyut waveform alami dan mikro-tremor P-wave untuk analisis & training ML.
+    pga = raw_pga;
 
-    float energy = raw_pga * raw_pga;
+    float energy = pga * pga;
     rms = sqrt((dyn_x * dyn_x + dyn_y * dyn_y + dyn_z * dyn_z) / 3.0f) / 9.80665f;
 
     _sta_ema = (energy * 0.1f) + (_sta_ema * 0.9f);
     _lta_ema = (energy * 0.005f) + (_lta_ema * 0.995f);
 
-    // Lacak noise floor saat kondisi tenang (raw_pga < 0.04g)
-    if (raw_pga < 0.04f) {
-      _noise_floor_ema = (raw_pga * 0.005f) + (_noise_floor_ema * 0.995f);
+    // Lacak noise floor saat kondisi tenang (pga < 0.04g)
+    if (pga < 0.04f) {
+      _noise_floor_ema = (pga * 0.005f) + (_noise_floor_ema * 0.995f);
     }
   }
 
   float safe_lta = _lta_ema < 1e-7f ? 1e-7f : _lta_ema;
-  float raw_ratio = _sta_ema / safe_lta;
-  // Saat kondisi tenang/diam (pga == 0.0g), squelch STA/LTA bersih ke 0.00 di semua node.
-  // Hanya tampilkan nilai rasio jika terjadi getaran aktual melebihi batas diam sensor.
-  float ratio = (pga > 0.0f) ? raw_ratio : 0.0f;
+  // Rasio seismologi murni (Allen, 1978): kondisi tenang berada di baseline alami ~1.0
+  float ratio = _sta_ema / safe_lta;
 
   float temp = 0.0;
   float pres = 0.0;
@@ -378,14 +372,15 @@ readGasSensor();
   }
 
   // TRACK 1: Algoritma Klasik (Heuristik Fisika Seismik)
-  // Frekuensi seismik gempa tektonik <= 15 Hz; deteksi getaran Shindo 1-3 (PGA >= 0.0040g, STA/LTA >= 1.50)
+  // Deteksi gempa jika getaran melebihi batas ambient noise (PGA >= 0.0080g), frekuensi seismik <= 15Hz, dan onset STA/LTA >= 1.50
   bool is_seismic_freq = (_current_hz == 0 || _current_hz <= 15);
-  bool is_earthquake_spike = (pga >= 0.0040f && is_seismic_freq && ratio >= 1.50f) || (pga >= 0.05f && is_seismic_freq && ratio >= 2.0f); 
+  bool is_earthquake_spike = (pga >= 0.0080f && is_seismic_freq && ratio >= 1.50f) || 
+                             (pga >= 0.0500f && is_seismic_freq && ratio >= 2.00f); 
 
-  // TRACK 2: TinyML Shadow Mode - Berjalan Paralel Menilai Probabilitas Gempa Tanpa Menyentuh Aktuator
+  // TRACK 2: TinyML Shadow Mode - Evaluasi Berkelanjutan Menggunakan Data Fisik Murni
   static unsigned long _vibe_start_time = 0;
   float duration_s = 1.0f;
-  if (pga > 0.0035f) {
+  if (pga > 0.0070f) {
     if (_vibe_start_time == 0) _vibe_start_time = millis();
     duration_s = (millis() - _vibe_start_time) / 1000.0f;
     if (duration_s < 0.5f) duration_s = 0.5f;
@@ -394,14 +389,9 @@ readGasSensor();
     duration_s = 1.0f;
   }
 
-  // Hitung probabilitas TinyML (0.00 - 1.00)
-  float ml_prob = 0.01f;
-  if (pga >= 0.003f) {
-    float effective_hz = ((float)_current_hz > 0.0f) ? (float)_current_hz : (pga >= 0.05f ? 2.5f : 10.0f);
-    ml_prob = lindu_predict_earthquake(pga, ratio, effective_hz, rms, duration_s, 0.5f);
-  } else {
-    ml_prob = 0.01f + (pga / 0.003f) * 0.02f;
-  }
+  // Hitung probabilitas TinyML (0.00 - 1.00) dengan fitur fisik murni
+  float effective_hz = ((float)_current_hz > 0.0f) ? (float)_current_hz : (pga >= 0.05f ? 2.5f : 10.0f);
+  float ml_prob = lindu_predict_earthquake(pga, ratio, effective_hz, rms, duration_s, 0.5f);
   bool ml_detect = (ml_prob >= 0.35f);
   bool ml_agree = (ml_detect == is_earthquake_spike);
 
