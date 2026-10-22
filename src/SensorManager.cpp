@@ -340,16 +340,15 @@ readGasSensor();
     }
 
     float raw_pga = sqrt(dyn_x * dyn_x + dyn_y * dyn_y + dyn_z * dyn_z) / 9.80665f;
-    // Deadband peredam noise MEMS diam (0.0045g) di-clamp bersih ke 0.000g untuk display seismogram PGA
-    if (raw_pga < 0.0045f) {
+    // Deadband peredam noise MEMS diam per jenis sensor:
+    // LSM6DS3 sangat hening ~0.0030g, MPU-6050 direct I2C ~0.0080g
+    float deadband = (accel_type == ACCEL_LSM6DS3) ? 0.0035f : 0.0080f;
+    if (raw_pga < deadband) {
       pga = 0.0f;
     } else {
       pga = raw_pga;
     }
 
-    // Opsi A (Seismologi Murni):
-    // Energi STA/LTA dihitung langsung dari akselerasi dinamik aktual (raw_pga),
-    // sehingga rasio STA/LTA ternormalisasi secara mandiri terhadap noise floor masing-masing node (~1.0).
     float energy = raw_pga * raw_pga;
     rms = sqrt((dyn_x * dyn_x + dyn_y * dyn_y + dyn_z * dyn_z) / 3.0f) / 9.80665f;
 
@@ -363,7 +362,10 @@ readGasSensor();
   }
 
   float safe_lta = _lta_ema < 1e-7f ? 1e-7f : _lta_ema;
-  float ratio = _sta_ema / safe_lta;
+  float raw_ratio = _sta_ema / safe_lta;
+  // Saat kondisi tenang/diam (pga == 0.0g), squelch STA/LTA bersih ke 0.00 di semua node.
+  // Hanya tampilkan nilai rasio jika terjadi getaran aktual melebihi batas diam sensor.
+  float ratio = (pga > 0.0f) ? raw_ratio : 0.0f;
 
   float temp = 0.0;
   float pres = 0.0;
