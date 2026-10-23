@@ -261,8 +261,8 @@ readGasSensor();
         _prev_raw_y = accel.acceleration.y;
         _prev_raw_z = accel.acceleration.z;
         _stationary_samples = 0;
-        _sta_ema = 0.00001f;
-        _lta_ema = 0.00001f;
+        _sta_ema = 0.0020f;
+        _lta_ema = 0.0020f;
         _zcr_count = 0;
         Serial.printf("[SENSOR] Kalibrasi Selesai! Baseline DC: (%.3f, %.3f, %.3f) m/s^2 (%d sampel)\n",
                       _dc_x, _dc_y, _dc_z, CALIBRATION_SAMPLE_TARGET);
@@ -345,11 +345,19 @@ readGasSensor();
     // mempertahankan denyut waveform alami dan mikro-tremor P-wave untuk analisis & training ML.
     pga = raw_pga;
 
-    float energy = pga * pga;
     rms = sqrt((dyn_x * dyn_x + dyn_y * dyn_y + dyn_z * dyn_z) / 3.0f) / 9.80665f;
 
-    _sta_ema = (energy * 0.1f) + (_sta_ema * 0.9f);
-    _lta_ema = (energy * 0.005f) + (_lta_ema * 0.995f);
+    // STANDAR SEISMOLOGI (Allen 1978 / BMKG):
+    // 1. Envelope linear PGA (menghindari amplifikasi eksponensial noise akibat kuadrat di domain mikro)
+    // 2. STA = 1.0 detik (alpha = 0.01 @ 100Hz) meratakan noise sesaat
+    // 3. LTA = 20.0 detik (alpha = 0.0005 @ 100Hz) merepresentasikan background noise
+    // 4. Freeze LTA saat getaran aktif (PGA >= 0.0080g atau ratio >= 1.50) agar LTA tidak menyerap energi gempa
+    _sta_ema = (pga * 0.01f) + (_sta_ema * 0.99f);
+
+    float temp_lta = (_lta_ema < 0.0001f) ? 0.0001f : _lta_ema;
+    if (pga < 0.0080f && (_sta_ema / temp_lta) < 1.50f) {
+      _lta_ema = (pga * 0.0005f) + (_lta_ema * 0.9995f);
+    }
 
     // Lacak noise floor saat kondisi tenang (pga < 0.04g)
     if (pga < 0.04f) {
@@ -357,8 +365,8 @@ readGasSensor();
     }
   }
 
-  float safe_lta = _lta_ema < 1e-7f ? 1e-7f : _lta_ema;
-  // Rasio seismologi murni (Allen, 1978): kondisi tenang berada di baseline alami ~1.0
+  float safe_lta = _lta_ema < 0.0001f ? 0.0001f : _lta_ema;
+  // Rasio seismologi murni: kondisi tenang terkunci stabil di baseline ~1.0
   float ratio = _sta_ema / safe_lta;
 
   float temp = 0.0;
