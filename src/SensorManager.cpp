@@ -261,8 +261,8 @@ readGasSensor();
         _prev_raw_y = accel.acceleration.y;
         _prev_raw_z = accel.acceleration.z;
         _stationary_samples = 0;
-        _sta_ema = 0.0020f;
-        _lta_ema = 0.0020f;
+        _sta_ema = (_noise_floor_ema > 0.0005f) ? _noise_floor_ema : 0.0030f;
+        _lta_ema = _sta_ema;
         _zcr_count = 0;
         Serial.printf("[SENSOR] Kalibrasi Selesai! Baseline DC: (%.3f, %.3f, %.3f) m/s^2 (%d sampel)\n",
                       _dc_x, _dc_y, _dc_z, CALIBRATION_SAMPLE_TARGET);
@@ -351,11 +351,11 @@ readGasSensor();
     // 1. Envelope linear PGA (menghindari amplifikasi eksponensial noise akibat kuadrat di domain mikro)
     // 2. STA = 1.0 detik (alpha = 0.01 @ 100Hz) meratakan noise sesaat
     // 3. LTA = 20.0 detik (alpha = 0.0005 @ 100Hz) merepresentasikan background noise
-    // 4. Freeze LTA saat getaran aktif (PGA >= 0.0080g atau ratio >= 1.50) agar LTA tidak menyerap energi gempa
+    // 4. Freeze LTA saat getaran gempa nyata (PGA >= 0.0080g) agar LTA tidak menyerap energi gempa.
+    // Selama kondisi tenang (PGA < 0.0080g), LTA otomatis beradaptasi ke noise floor unik masing-masing sensor.
     _sta_ema = (pga * 0.01f) + (_sta_ema * 0.99f);
 
-    float temp_lta = (_lta_ema < 0.0001f) ? 0.0001f : _lta_ema;
-    if (pga < 0.0080f && (_sta_ema / temp_lta) < 1.50f) {
+    if (pga < 0.0080f) {
       _lta_ema = (pga * 0.0005f) + (_lta_ema * 0.9995f);
     }
 
