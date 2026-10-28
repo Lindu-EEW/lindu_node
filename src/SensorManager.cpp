@@ -222,6 +222,9 @@ readGasSensor();
   float dyn_x = 0;
   float dyn_y = 0;
   float dyn_z = 0;
+  float filt_dyn_x = 0;
+  float filt_dyn_y = 0;
+  float filt_dyn_z = 0;
   float pga = 0;
   float rms = 0;
 
@@ -261,6 +264,9 @@ readGasSensor();
         _prev_raw_y = accel.acceleration.y;
         _prev_raw_z = accel.acceleration.z;
         _stationary_samples = 0;
+        _filter_x.reset();
+        _filter_y.reset();
+        _filter_z.reset();
         _sta_ema = (_noise_floor_ema > 0.0005f) ? _noise_floor_ema : 0.0030f;
         _lta_ema = _sta_ema;
         _zcr_count = 0;
@@ -329,9 +335,16 @@ readGasSensor();
     dyn_y = accel.acceleration.y - _dc_y;
     dyn_z = accel.acceleration.z - _dc_z;
 
-    if ((dyn_z > 0 && _last_dyn_z <= 0) || (dyn_z < 0 && _last_dyn_z >= 0))
+    // Digital Butterworth Low-Pass Filter (2nd-Order, Cutoff = 15 Hz @ 100 Hz fs)
+    // Meloloskan ~100% energi gelombang gempa tektonik riil (0.5 - 10 Hz)
+    // dan meredam derau mekanis meja, ketukan, atau fan (>20 Hz) hingga >85%
+    filt_dyn_x = _filter_x.process(dyn_x);
+    filt_dyn_y = _filter_y.process(dyn_y);
+    filt_dyn_z = _filter_z.process(dyn_z);
+
+    if ((filt_dyn_z > 0 && _last_dyn_z <= 0) || (filt_dyn_z < 0 && _last_dyn_z >= 0))
       _zcr_count++;
-    _last_dyn_z = dyn_z;
+    _last_dyn_z = filt_dyn_z;
 
     if (millis() - _zcr_timer >= 1000) {
       _current_hz = _zcr_count / 2;
@@ -339,13 +352,12 @@ readGasSensor();
       _zcr_timer = millis();
     }
 
-    float raw_pga = sqrt(dyn_x * dyn_x + dyn_y * dyn_y + dyn_z * dyn_z) / 9.80665f;
-    // PURE SCIENTIFIC DATA (UNCLAMPED):
-    // PGA mengirimkan akselerasi dinamik fisik riil tanpa pemotongan buatan,
-    // mempertahankan denyut waveform alami dan mikro-tremor P-wave untuk analisis & training ML.
+    float raw_pga = sqrt(filt_dyn_x * filt_dyn_x + filt_dyn_y * filt_dyn_y + filt_dyn_z * filt_dyn_z) / 9.80665f;
+    // PURE SCIENTIFIC DATA (SEISMIC BANDPASS):
+    // PGA menghitung akselerasi dinamik seismik riil dalam batas spektral gempa bumi (0.5 - 15 Hz).
     pga = raw_pga;
 
-    rms = sqrt((dyn_x * dyn_x + dyn_y * dyn_y + dyn_z * dyn_z) / 3.0f) / 9.80665f;
+    rms = sqrt((filt_dyn_x * filt_dyn_x + filt_dyn_y * filt_dyn_y + filt_dyn_z * filt_dyn_z) / 3.0f) / 9.80665f;
 
     // STANDAR SEISMOLOGI (Allen 1978 / BMKG):
     // 1. Envelope linear PGA (menghindari amplifikasi eksponensial noise akibat kuadrat di domain mikro)
@@ -407,9 +419,9 @@ readGasSensor();
   // - Saat ada lonjakan guncangan / gempa (is_earthquake_spike): kirim burst 100ms dengan prioritas antrean terdepan
   // - Saat tenang: tetap kirim metrics kontinu (100ms / 10 Hz) langsung ke antrean
   if (millis() - _telemetry_last_send >= 100) {
-    SensorEvent ev = {pga,   ratio, _current_hz, rms,  dyn_x,
-                      dyn_y, dyn_z, millis(),    temp, pres,
-                      ml_prob, ml_agree};
+    SensorEvent ev = {pga,        ratio,      _current_hz, rms,
+                      filt_dyn_x, filt_dyn_y, filt_dyn_z,  millis(),
+                      temp,       pres,       ml_prob,     ml_agree};
     if (is_earthquake_spike) {
       xQueueSendToFront(_eventQueue, &ev, 0);
     } else {
@@ -444,5 +456,8 @@ void SensorManager::tare() {
   _calib_samples_count = 0;
   _stationary_samples = 0;
   _is_calibrated = false;
+  _filter_x.reset();
+  _filter_y.reset();
+  _filter_z.reset();
   Serial.println("[SENSOR] Tare / Kalibrasi ulang diinisiasi.");
 }

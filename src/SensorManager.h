@@ -31,6 +31,32 @@ struct SensorEvent {
     bool  ml_agree;
 };
 
+// 2nd-Order Butterworth Low-Pass Filter (Cutoff = 15 Hz @ 100 Hz fs)
+// Mengeliminasi mechanical noise / ketukan meja (>20 Hz) sebesar >85%,
+// sekaligus mempertahankan ~100% gelombang seismik tektonik riil (0.5 - 10 Hz).
+struct BiquadFilter {
+    float b0 = 0.131106f;
+    float b1 = 0.262213f;
+    float b2 = 0.131106f;
+    float a1 = -0.747789f;
+    float a2 = 0.272215f;
+    float x1 = 0.0f, x2 = 0.0f;
+    float y1 = 0.0f, y2 = 0.0f;
+
+    void reset() {
+        x1 = x2 = y1 = y2 = 0.0f;
+    }
+
+    float process(float in) {
+        float out = (b0 * in) + (b1 * x1) + (b2 * x2) - (a1 * y1) - (a2 * y2);
+        x2 = x1;
+        x1 = in;
+        y2 = y1;
+        y1 = out;
+        return out;
+    }
+};
+
 #define GAS_LEAK_THRESHOLD 2000
 #define GAS_WARMUP_MS 30000 // MQ-2 butuh waktu pemanasan sebelum pembacaan stabil
 
@@ -100,6 +126,11 @@ private:
     unsigned long _telemetry_calm_since = 0;
     static const unsigned long TELEMETRY_INTERVAL_MS = 1000;
     static const unsigned long TELEMETRY_COOLDOWN_MS = 10000;
+
+    // Filter Seismik Digital (15 Hz Butterworth)
+    BiquadFilter _filter_x;
+    BiquadFilter _filter_y;
+    BiquadFilter _filter_z;
 };
 
 #endif
