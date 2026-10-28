@@ -354,9 +354,11 @@ void NetworkManager::mqttCallback(char* topic, byte* payload, unsigned int lengt
             String target = doc["target_node"] | "all";
             String my_id = String(instance->_configMgr->config.node_id);
             if (target == "all" || target == my_id) {
+                bool force_all = doc["force"] | true;
+                int max_recs = doc["limit"] | 500;
                 int n = storageMgr.syncOfflineRecords([instance](const char* p) {
                     return instance->publishOfflineRecord(p);
-                }, 50);
+                }, max_recs, force_all);
                 char sync_msg[96];
                 snprintf(sync_msg, sizeof(sync_msg), "Synced %d offline records to server. (%zu left)",
                          n, storageMgr.getUnsyncedCount());

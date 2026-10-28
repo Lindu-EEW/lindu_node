@@ -56,7 +56,7 @@ public:
     bool clearRecords();
 
     // Sinkronisasi record offline ke server via MQTT saat koneksi pulih
-    int syncOfflineRecords(std::function<bool(const char* json_payload)> publishCallback, int max_records = 20);
+    int syncOfflineRecords(std::function<bool(const char* json_payload)> publishCallback, int max_records = 20, bool force_all = false);
 
 private:
     bool _fs_ok;

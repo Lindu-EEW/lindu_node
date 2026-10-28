@@ -535,17 +535,25 @@ void networkTaskCode(void* parameter) {
                 }
             }
 
+            // JENDELA PEREKAMAN KODA GEMPA (15 Detik Penuh Pasca-Getaran):
+            // Memastikan rekaman gelombang gempa utuh dari P-wave awal, puncak S-wave, hingga koda gempa mereda total.
+            static unsigned long earthquake_coda_until = 0;
+            if (is_severe_earthquake || is_minor_earthquake || (ev.pga >= 0.0080f && is_seismic_frequency)) {
+                earthquake_coda_until = millis() + 15000;
+            }
+            bool is_in_earthquake = (millis() < earthquake_coda_until);
+
             // PEREKAM BLACKBOX GEMPA:
             // Rekam getaran gempa ke flash storage (LittleFS) saat offline maupun online.
-            // Kini aktif untuk gempa ringan (Shindo 1-3, seperti Chiba M4.0) maupun gempa kuat.
-            if (is_severe_earthquake || is_minor_earthquake || (is_offline && is_significant_shake)) {
+            // Perekaman terus aktif selama getaran berlangsung + 15 detik koda peluruhan tanpa terputus.
+            if (is_in_earthquake || (is_offline && is_significant_shake)) {
                 storageMgr.recordEarthquake(
                     getEpochTime(), ev.uptime_ms,
                     ev.pga, ev.ratio, ev.freq_hz, ev.rms,
                     ev.accel_x, ev.accel_y, ev.accel_z,
                     1.0f, 0.5f,
                     ev.ml_prob, ev.ml_agree,
-                    is_severe_earthquake || is_minor_earthquake, is_offline
+                    true, is_offline
                 );
             }
 
@@ -562,7 +570,7 @@ void networkTaskCode(void* parameter) {
 
         // SINKRONISASI OTOMATIS SAAT KEMBALI TERHUBUNG:
         // 1. Seketika saat transisi dari offline -> online terdeteksi (Immediate Reconnect Trigger)
-        // 2. Berulang cepat setiap 5 detik selama masih ada antrean rekaman offline yang belum terkirim
+        // 2. Berulang cepat setiap 3 detik selama masih ada antrean rekaman offline yang belum terkirim
         static bool last_net_connected = false;
         bool is_now_connected = networkMgr.isConnected();
         bool just_reconnected = (!last_net_connected && is_now_connected);
@@ -570,11 +578,11 @@ void networkTaskCode(void* parameter) {
 
         static unsigned long last_sync_check = 0;
         if (is_now_connected && storageMgr.getUnsyncedCount() > 0) {
-            if (just_reconnected || (millis() - last_sync_check >= 5000)) {
+            if (just_reconnected || (millis() - last_sync_check >= 3000)) {
                 last_sync_check = millis();
                 int synced = storageMgr.syncOfflineRecords([](const char* payload) {
                     return networkMgr.publishOfflineRecord(payload);
-                }, 25);
+                }, 50);
                 if (synced > 0) {
                     char sync_log[96];
                     snprintf(sync_log, sizeof(sync_log), "[AUTO-SYNC] %d rekaman gempa offline berhasil dikirim ke server (%zu tersisa)",
@@ -697,8 +705,8 @@ void setup() {
     }
     Serial.println("[OK] WiFi Terhubung.");
 
-    // 2. Buat Antrean Pesan Lintas-Core (30 slot pesan @ ~48 byte)
-    eventQueue = xQueueCreate(30, sizeof(SensorEvent));
+    // 2. Buat Antrean Pesan Lintas-Core (200 slot pesan @ ~48 byte = 20 detik buffer gempa)
+    eventQueue = xQueueCreate(200, sizeof(SensorEvent));
 
     // 3. Pisahkan Tugas Berat ke Core 0
     xTaskCreatePinnedToCore(

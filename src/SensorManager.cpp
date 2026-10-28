@@ -434,9 +434,13 @@ readGasSensor();
                       filt_dyn_x, filt_dyn_y, filt_dyn_z,  millis(),
                       temp,       pres,       ml_prob,     ml_agree,
                       vibe_class};
-    if (is_earthquake_spike) {
-      xQueueSendToFront(_eventQueue, &ev, 0);
-    } else {
+    // JAMINAN KEUTUHAN DATA GELOMBANG GEMPA (FIFO KRONOLOGIS):
+    // Seluruh data getaran dikirim berurutan (P-wave -> S-wave -> Coda) tanpa pembalikan urutan.
+    // Diberi waktu tunggu 10ms jika antrean sibuk. Jika antrean penuh (20 detik terisi),
+    // buang sampel terlama agar sampel guncangan terkini SELALU masuk tanpa pernah terputus.
+    if (xQueueSend(_eventQueue, &ev, pdMS_TO_TICKS(10)) != pdTRUE) {
+      SensorEvent old_ev;
+      xQueueReceive(_eventQueue, &old_ev, 0);
       xQueueSend(_eventQueue, &ev, 0);
     }
     _telemetry_last_send = millis();

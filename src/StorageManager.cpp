@@ -104,20 +104,19 @@ bool StorageManager::recordEarthquake(
     }
 
     // Rate-limit penulisan flash:
-    // Selama getaran gempa berlangsung, jangan tulis setiap 100ms agar flash tidak cepat aus.
-    // Tulis jika sudah lewat 800ms sejak rekaman terakhir, ATAU jika PGA melonjak signifikan (+20% dari puncak sebelumnya).
+    // Selama getaran gempa berlangsung, simpan setiap 200ms (5 Hz resolusi tinggi)
+    // ATAU setiap kali PGA melonjak membentuk puncak baru (+5% dari puncak sebelumnya).
     unsigned long now = millis();
-    bool is_new_peak = (pga > _last_saved_pga * 1.20f && pga > 0.005f);
-    if ((now - _last_save_time < 800) && !is_new_peak) {
+    bool is_new_peak = (pga > _last_saved_pga * 1.05f && pga > 0.005f);
+    if ((now - _last_save_time < 200) && !is_new_peak) {
         return false;
     }
     _last_save_time = now;
     _last_saved_pga = pga;
 
     _record_count++;
-    if (is_offline) {
-        _unsynced_count++;
-    }
+    // Seluruh rekaman gempa selalu dicatat untuk sinkronisasi otomatis agar server terjamin utuh
+    _unsynced_count++;
 
     // 1. Simpan baris ke CSV (untuk ditarik langsung ke scikit-learn / TensorFlow / TinyML)
     File f_csv = LittleFS.open(_csv_path, FILE_APPEND);
@@ -263,8 +262,9 @@ bool StorageManager::clearRecords() {
     return true;
 }
 
-int StorageManager::syncOfflineRecords(std::function<bool(const char* json_payload)> publishCallback, int max_records) {
-    if (!_fs_ok || _unsynced_count == 0) return 0;
+int StorageManager::syncOfflineRecords(std::function<bool(const char* json_payload)> publishCallback, int max_records, bool force_all) {
+    if (!_fs_ok) return 0;
+    if (!force_all && _unsynced_count == 0) return 0;
     if (!LittleFS.exists(_jsonl_path)) return 0;
 
     File f_in = LittleFS.open(_jsonl_path, FILE_READ);
@@ -284,7 +284,7 @@ int StorageManager::syncOfflineRecords(std::function<bool(const char* json_paylo
         line.trim();
         if (line.length() < 5) continue;
 
-        if (synced_now < max_records && (line.indexOf("\"sync\":0") >= 0 || line.indexOf("\"sync\": 0") >= 0)) {
+        if (synced_now < max_records && (force_all || line.indexOf("\"sync\":0") >= 0 || line.indexOf("\"sync\": 0") >= 0)) {
             // Coba kirim via MQTT
             if (publishCallback(line.c_str())) {
                 line.replace("\"sync\":0", "\"sync\":1");
