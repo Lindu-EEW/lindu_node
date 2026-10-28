@@ -1,6 +1,7 @@
 #include "SensorManager.h"
 #include "NetworkManager.h"
 #include "lindu_ml_model.h"
+#include "lindu_multiclass_model.h"
 
 extern NetworkManager networkMgr;
 extern bool is_valve_locked;
@@ -346,16 +347,22 @@ readGasSensor();
       _zcr_count++;
     _last_dyn_z = filt_dyn_z;
 
-    if (millis() - _zcr_timer >= 1000) {
-      _current_hz = _zcr_count / 2;
-      _zcr_count = 0;
-      _zcr_timer = millis();
-    }
-
     float raw_pga = sqrt(filt_dyn_x * filt_dyn_x + filt_dyn_y * filt_dyn_y + filt_dyn_z * filt_dyn_z) / 9.80665f;
     // PURE SCIENTIFIC DATA (SEISMIC BANDPASS):
     // PGA menghitung akselerasi dinamik seismik riil dalam batas spektral gempa bumi (0.5 - 15 Hz).
     pga = raw_pga;
+
+    if (millis() - _zcr_timer >= 1000) {
+      // Zero-Crossing Noise Gate: Derau termal mikro ADC pada baseline tenang (< 0.0040g)
+      // alami berosilasi 4-8 Hz; gate ini memastikan saat tenang terdeteksi murni 0 Hz.
+      if (pga < 0.0040f) {
+        _current_hz = 0;
+      } else {
+        _current_hz = _zcr_count / 2;
+      }
+      _zcr_count = 0;
+      _zcr_timer = millis();
+    }
 
     rms = sqrt((filt_dyn_x * filt_dyn_x + filt_dyn_y * filt_dyn_y + filt_dyn_z * filt_dyn_z) / 3.0f) / 9.80665f;
 
@@ -415,13 +422,18 @@ readGasSensor();
   bool ml_detect = (ml_prob >= 0.35f);
   bool ml_agree = (ml_detect == is_earthquake_spike);
 
+  // TRACK 3: TinyML Multiclass Vibration Classifier (7 Kelas: Gempa, Pukulan, Benda Jatuh, Langkah, dll)
+  VibrationClassification v_res = classify_vibration(pga, ratio, effective_hz, rms, duration_s);
+  const char* vibe_class = v_res.class_name;
+
   // Kirim metrics secara kontinu:
   // - Saat ada lonjakan guncangan / gempa (is_earthquake_spike): kirim burst 100ms dengan prioritas antrean terdepan
   // - Saat tenang: tetap kirim metrics kontinu (100ms / 10 Hz) langsung ke antrean
   if (millis() - _telemetry_last_send >= 100) {
     SensorEvent ev = {pga,        ratio,      _current_hz, rms,
                       filt_dyn_x, filt_dyn_y, filt_dyn_z,  millis(),
-                      temp,       pres,       ml_prob,     ml_agree};
+                      temp,       pres,       ml_prob,     ml_agree,
+                      vibe_class};
     if (is_earthquake_spike) {
       xQueueSendToFront(_eventQueue, &ev, 0);
     } else {

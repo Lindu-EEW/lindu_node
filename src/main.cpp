@@ -555,7 +555,8 @@ void networkTaskCode(void* parameter) {
                 ev.uptime_ms, getEpochTime(),
                 configMgr.config.lat, configMgr.config.lon,
                 ev.temperature, ev.pressure,
-                ev.ml_prob, ev.ml_agree
+                ev.ml_prob, ev.ml_agree,
+                ev.vibe_class
             );
         }
 

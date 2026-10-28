@@ -29,6 +29,7 @@ struct SensorEvent {
     float pressure;
     float ml_prob;
     bool  ml_agree;
+    const char* vibe_class;
 };
 
 // 2nd-Order Butterworth Low-Pass Filter (Cutoff = 15 Hz @ 100 Hz fs)

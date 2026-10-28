@@ -11,7 +11,7 @@ public:
     bool isConnected();
     void forcePublishStatus();
     void publishStatus(String status, bool sensor_ok, float tilt_angle, String pose, bool motion_detected = false);
-    void publishEvent(float pga, float sta_lta, int freq_hz, float ax, float ay, float az, unsigned long uptime_ms, double epoch, double lat, double lon, float temp, float pres, float ml_prob = 0.0f, bool ml_agree = true);
+    void publishEvent(float pga, float sta_lta, int freq_hz, float ax, float ay, float az, unsigned long uptime_ms, double epoch, double lat, double lon, float temp, float pres, float ml_prob = 0.0f, bool ml_agree = true, const char* vibe_class = "AMBIENT_TENANG");
     void publishLog(const char* message);
     // Event perubahan state aktuator (valve/door/buzzer/led) -> lindu/sensor/<id>/actuator.
     // Return false jika MQTT belum terhubung, supaya pemanggil bisa mencoba lagi.
