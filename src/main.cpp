@@ -537,8 +537,9 @@ void networkTaskCode(void* parameter) {
 
             // JENDELA PEREKAMAN KODA GEMPA (15 Detik Penuh Pasca-Getaran):
             // Memastikan rekaman gelombang gempa utuh dari P-wave awal, puncak S-wave, hingga koda gempa mereda total.
+            // Saat offline (terisolasi tanpa server), getaran apapun >= 0.0040g (Shindo 1) langsung memicu jendela perekaman.
             static unsigned long earthquake_coda_until = 0;
-            if (is_severe_earthquake || is_minor_earthquake || (ev.pga >= 0.0080f && is_seismic_frequency)) {
+            if (is_severe_earthquake || is_minor_earthquake || (ev.pga >= 0.0080f && is_seismic_frequency) || (is_offline && ev.pga >= 0.0040f)) {
                 earthquake_coda_until = millis() + 15000;
             }
             bool is_in_earthquake = (millis() < earthquake_coda_until);
@@ -546,7 +547,7 @@ void networkTaskCode(void* parameter) {
             // PEREKAM BLACKBOX GEMPA:
             // Rekam getaran gempa ke flash storage (LittleFS) saat offline maupun online.
             // Perekaman terus aktif selama getaran berlangsung + 15 detik koda peluruhan tanpa terputus.
-            if (is_in_earthquake || (is_offline && is_significant_shake)) {
+            if (is_in_earthquake || (is_offline && (ev.pga >= 0.0040f || is_significant_shake))) {
                 storageMgr.recordEarthquake(
                     getEpochTime(), ev.uptime_ms,
                     ev.pga, ev.ratio, ev.freq_hz, ev.rms,
