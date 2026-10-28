@@ -29,6 +29,14 @@ static const float ML_BIAS = 0.143630f;
  */
 static inline float lindu_predict_earthquake(float pga, float sta_lta, float freq_hz,
                                              float rms, float duration_s, float p_to_s_ratio) {
+    // GATING PRE-FILTER (Domain Seismologi):
+    // Jika akselerasi berada di bawah noise floor ambient (< 0.0080g),
+    // sistem berada dalam kondisi tenang / hening. Probabilitas gempa murni baseline 1% - 3%.
+    // Mencegah model linear overfit pada fitur frekuensi rendah saat hening (OOD).
+    if (pga < 0.0080f) {
+        return 0.01f + (pga / 0.0080f) * 0.02f;
+    }
+
     float feats[ML_NUM_FEATURES] = {pga, sta_lta, freq_hz, rms, duration_s, p_to_s_ratio};
     float z = ML_BIAS;
     for (int i = 0; i < ML_NUM_FEATURES; ++i) {
