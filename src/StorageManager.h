@@ -68,8 +68,18 @@ private:
     const char* _csv_path;
     const char* _jsonl_path;
 
+    // Batas ukuran file agar partisi LittleFS (128KB) tidak pernah penuh.
+    // Anggaran terburuk: JSONL 32K + CSV 24K + salinan sementara <= 32K = 88K < 128K.
+    static constexpr size_t JSONL_MAX_BYTES = 32 * 1024;
+    static constexpr size_t CSV_MAX_BYTES   = 24 * 1024;
+    // Sisa ruang minimum yang harus tersedia sebelum menulis / menyalin file.
+    static constexpr size_t MIN_FREE_BYTES  = 8 * 1024;
+
     void ensureHeader();
     void countExistingRecords();
+
+    // Jika file melebihi max_bytes, buang rekaman terlama (simpan separuh terbaru).
+    void trimFile(const char* path, size_t max_bytes, bool keep_header);
 };
 
 extern StorageManager storageMgr;
