@@ -14,7 +14,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        environment: [esp32s3, esp32_wroom]
+        include:
+          # S3 tetap memakai env esp32s3.
+          # ESP classic dibangun dengan env 4MB (header flash 4MB, aman untuk chip >= 4MB),
+          # lalu dipublikasikan sebagai firmware_esp32_wroom.bin sesuai BOARD_VARIANT firmware.
+          - environment: esp32s3
+            variant: esp32s3
+          - environment: esp32_wroom_4mb
+            variant: esp32_wroom
     
     steps:
       - name: Checkout Code
@@ -64,13 +71,13 @@ jobs:
 
       - name: Rename Firmware Binary
         run: |
-          mv .pio/build/${{ matrix.environment }}/firmware.bin firmware_${{ matrix.environment }}.bin
+          mv .pio/build/${{ matrix.environment }}/firmware.bin firmware_${{ matrix.variant }}.bin
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: firmware-${{ matrix.environment }}
-          path: firmware_${{ matrix.environment }}.bin
+          name: firmware-${{ matrix.variant }}
+          path: firmware_${{ matrix.variant }}.bin
 
   release:
     needs: build
