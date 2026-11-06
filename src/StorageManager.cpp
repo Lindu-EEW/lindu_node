@@ -114,6 +114,21 @@ bool StorageManager::recordEarthquake(
     _last_save_time = now;
     _last_saved_pga = pga;
 
+    // Rotasi: batasi ukuran file, buang rekaman terlama agar flash tidak pernah penuh.
+    trimFile(_jsonl_path, JSONL_MAX_BYTES, false);
+    trimFile(_csv_path, CSV_MAX_BYTES, true);
+
+    // Pengaman terakhir: jangan menulis kalau sisa ruang terlalu tipis
+    // (menulis ke LittleFS yang nyaris penuh bisa membuat panic di lfs_alloc).
+    if (getFreeBytes() < MIN_FREE_BYTES) {
+        static unsigned long last_warn = 0;
+        if (millis() - last_warn > 10000) {
+            last_warn = millis();
+            Serial.println("[STORAGE] Ruang flash tipis, rekaman dilewati.");
+        }
+        return false;
+    }
+
     _record_count++;
     // Seluruh rekaman gempa selalu dicatat untuk sinkronisasi otomatis agar server terjamin utuh
     _unsynced_count++;
@@ -262,6 +277,65 @@ bool StorageManager::clearRecords() {
     return true;
 }
 
+void StorageManager::trimFile(const char* path, size_t max_bytes, bool keep_header) {
+    if (!_fs_ok || !LittleFS.exists(path)) return;
+
+    File in = LittleFS.open(path, FILE_READ);
+    if (!in) return;
+    size_t size = in.size();
+    if (size <= max_bytes) {
+        in.close();
+        return;
+    }
+
+    const size_t keep = max_bytes / 2;  // simpan separuh terbaru, buang sisanya
+
+    // Salinan sementara butuh ~keep byte. Kalau tidak muat, buang seluruh file
+    // (lebih baik kehilangan riwayat lama daripada membuat flash penuh dan panic).
+    if (getFreeBytes() < keep + MIN_FREE_BYTES) {
+        in.close();
+        LittleFS.remove(path);
+        if (!keep_header) _unsynced_count = 0;
+        ensureHeader();
+        Serial.printf("[STORAGE] Rotasi darurat %s: ruang tipis, file dikosongkan.\n", path);
+        return;
+    }
+
+    String header;
+    if (keep_header) header = in.readStringUntil('\n');
+
+    size_t start = size - keep;
+    if (keep_header && start < (size_t)in.position()) start = in.position();
+    in.seek(start);
+    in.readStringUntil('\n');  // buang baris yang terpotong di tengah
+
+    const char* tmp = "/trim.tmp";
+    File out = LittleFS.open(tmp, FILE_WRITE);
+    if (!out) {
+        in.close();
+        return;
+    }
+    if (keep_header) out.println(header);
+
+    size_t unsynced = 0;
+    while (in.available()) {
+        String line = in.readStringUntil('\n');
+        line.trim();
+        if (line.length() < 5) continue;
+        out.println(line);
+        if (!keep_header && line.indexOf("\"sync\":0") >= 0) unsynced++;
+    }
+    in.close();
+    out.close();
+
+    LittleFS.remove(path);
+    LittleFS.rename(tmp, path);
+    if (!keep_header) _unsynced_count = unsynced;
+
+    Serial.printf("[STORAGE] Rotasi %s: rekaman terlama dibuang (%u -> ~%u byte)\n",
+                  path, (unsigned)size, (unsigned)keep);
+}
+
 int StorageManager::syncOfflineRecords(std::function<bool(const char* json_payload)> publishCallback, int max_records, bool force_all) {
     if (!_fs_ok) return 0;
     if (!force_all && _unsynced_count == 0) return 0;
@@ -269,6 +343,35 @@ int StorageManager::syncOfflineRecords(std::function<bool(const char* json_paylo
 
     File f_in = LittleFS.open(_jsonl_path, FILE_READ);
     if (!f_in) return 0;
+
+    // Pengaman: menulis ulang file butuh salinan sementara sebesar file itu sendiri.
+    // Kalau ruang tidak cukup, kirim saja tanpa menulis ulang; bila semua terkirim,
+    // file dibuang karena seluruh isinya sudah ada di server.
+    if (getFreeBytes() < (size_t)f_in.size() + MIN_FREE_BYTES) {
+        int sent = 0;
+        bool all_ok = true;
+        while (f_in.available()) {
+            String line = f_in.readStringUntil('\n');
+            line.trim();
+            if (line.length() < 5) continue;
+            bool unsynced = force_all || line.indexOf("\"sync\":0") >= 0 || line.indexOf("\"sync\": 0") >= 0;
+            if (!unsynced) continue;
+            if (publishCallback(line.c_str())) {
+                sent++;
+            } else {
+                all_ok = false;
+                break;
+            }
+        }
+        f_in.close();
+        if (all_ok) {
+            LittleFS.remove(_jsonl_path);
+            _unsynced_count = 0;
+        }
+        Serial.printf("[STORAGE SYNC] Ruang flash tipis: kirim tanpa tulis ulang, %d terkirim%s.\n",
+                      sent, all_ok ? ", file dikosongkan" : ", sebagian gagal (dicoba lagi nanti)");
+        return sent;
+    }
 
     String temp_path = "/earthquakes.tmp";
     File f_out = LittleFS.open(temp_path.c_str(), FILE_WRITE);
